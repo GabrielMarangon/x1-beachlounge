@@ -1,0 +1,167 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>X1_BTC - Início</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body data-page="home">
+  <header class="topbar">
+    <div class="topbar-grid">
+      <div class="topbar-logo left">
+        <img class="brand-logo" src="{{ url_for('static', filename='images/logo_btc_oficial.png') }}" alt="Logo Brasil Tênis Clube">
+      </div>
+      <div class="topbar-title topbar-title-home">
+        <span class="topbar-club">Brasil Tênis Clube</span>
+        <p>Ranking X1 - gestão de desafios, jogos e quadras</p>
+      </div>
+      <div class="topbar-logo right">
+        <img class="brand-logo" src="{{ url_for('static', filename='images/logo_ranking_x1_oficial.png') }}" alt="Logo Ranking X1">
+      </div>
+    </div>
+  </header>
+
+  <nav class="nav-links">
+    <a href="/">Início</a>
+    <a href="/ranking">Ranking</a>
+    <a href="/agenda">Agenda</a>
+    <a href="/partidas">Jogos marcados</a>
+    <a href="/resultado-atleta">Resultado do atleta</a>
+    <a href="/desafio">Desafios</a>
+    <a href="/secretaria">Secretaria</a>
+  </nav>
+
+  <main class="container">
+    <section class="section-header">
+      <h2>Ações principais</h2>
+      <p>Painel esportivo para atletas, organização e secretaria</p>
+    </section>
+
+    <section class="cards-grid cards-grid-main">
+      <a class="card action-card" href="/ranking">
+        <div class="card-icon">🏆</div>
+        <h3>Ver ranking</h3>
+        <p>Classificação completa por categoria</p>
+      </a>
+      <a class="card action-card" href="/desafio">
+        <div class="card-icon">🎾</div>
+        <h3>Ver desafios possíveis</h3>
+        <p>Quem pode desafiar quem no momento</p>
+      </a>
+      <a class="card action-card" href="/agenda">
+        <div class="card-icon">📅</div>
+        <h3>Agenda de quadras</h3>
+        <p>Horários livres e partidas ocupando quadra</p>
+      </a>
+      <a class="card action-card" href="/partidas">
+        <div class="card-icon">🟢</div>
+        <h3>Jogos marcados</h3>
+        <p>Agenda pública de confrontos do clube</p>
+      </a>
+      <a class="card action-card" href="/resultado-atleta">
+        <div class="card-icon">📊</div>
+        <h3>Resultado do atleta</h3>
+        <p>Lançamento de placar e atualização do ranking</p>
+      </a>
+      <a class="card action-card secretary-card" href="/secretaria">
+        <div class="card-icon">⚙️</div>
+        <h3>Área da secretaria</h3>
+        <p>Somente a secretaria pode agendar quadras e administrar partidas</p>
+      </a>
+    </section>
+
+    <section class="section-header">
+      <h2>Painel de informações</h2>
+      <p>Status diário de jogos, horários e ranking</p>
+    </section>
+
+    <section class="panel-grid dashboard-grid">
+      <article class="panel">
+        <h2>Próximos jogos do dia</h2>
+        {% if resumo.jogos_hoje %}
+          <ul class="list-clean list-games">
+            {% for p in resumo.jogos_hoje %}
+              <li>
+                <span class="slot-time">{{ p.horario }}</span>
+                <span class="slot-court">{{ p.quadra_nome }}</span>
+                <span class="slot-match">{{ p.desafiante_nome }} vs {{ p.desafiado_nome }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="empty-state">🎾 Nenhum jogo marcado para hoje.</p>
+        {% endif %}
+      </article>
+
+      <article class="panel">
+        <h2>Horários livres hoje</h2>
+        {% if resumo.horarios_livres_por_quadra %}
+          <ul class="list-clean">
+            {% for item in resumo.horarios_livres_por_quadra %}
+              <li>
+                <strong>{{ item.quadra }}:</strong>
+                {% if item.horarios %}
+                  {{ item.horarios|join(', ') }}
+                {% else %}
+                  Sem horários livres
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="empty-state">✅ Todas as quadras estão ocupadas hoje.</p>
+        {% endif %}
+      </article>
+
+      <article class="panel panel-attention">
+        <h2>Partidas pendentes de resultado</h2>
+        <p><strong>{{ resumo.pendentes_resultado|length }}</strong> partidas aguardando lançamento.</p>
+        {% if resumo.pendentes_resultado %}
+          <ul class="list-clean">
+            {% for p in resumo.pendentes_resultado[:4] %}
+              <li>{{ p.data }} {{ p.horario }} - {{ p.desafiante_nome }} x {{ p.desafiado_nome }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </article>
+
+      <article class="panel">
+        <h2>Atletas ativos por categoria</h2>
+        <ul class="list-clean">
+          {% for rk, total in resumo.ativos_por_categoria.items() %}
+            <li><strong>{{ ranking_rotulos[rk] }}:</strong> {{ total }}</li>
+          {% endfor %}
+        </ul>
+      </article>
+
+      <article class="panel">
+        <h2>Últimos resultados</h2>
+        {% if resumo.ultimos_resultados %}
+          <ul class="list-clean">
+            {% for p in resumo.ultimos_resultados %}
+              <li>{{ p.desafiante_nome }} <strong>{{ p.resultado or '-' }}</strong> {{ p.desafiado_nome }}</li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="empty-state">📌 Ainda não há resultados registrados.</p>
+        {% endif %}
+      </article>
+
+      <article class="panel">
+        <h2>Top 5 do ranking</h2>
+        {% if resumo.top5_masculino %}
+          <ol class="list-clean ranked">
+            {% for atleta in resumo.top5_masculino %}
+              <li>#{{ atleta.posicao }} - {{ atleta.nome }}</li>
+            {% endfor %}
+          </ol>
+        {% else %}
+          <p class="empty-state">Sem dados do ranking principal no momento.</p>
+        {% endif %}
+      </article>
+    </section>
+  </main>
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

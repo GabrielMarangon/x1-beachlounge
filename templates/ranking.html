@@ -1,0 +1,49 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>X1 BTC - Ranking</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body data-page="ranking">
+  <header class="topbar">
+    <div class="topbar-grid">
+      <div class="topbar-logo left">
+        <img class="brand-logo" src="{{ url_for('static', filename='images/logo_btc_oficial.png') }}" alt="Logo Brasil Tênis Clube">
+      </div>
+      <div class="topbar-title">
+        <span class="topbar-club">Brasil Tênis Clube</span>
+        <h1>Ranking</h1>
+        <p>Classificação oficial por categoria</p>
+      </div>
+      <div class="topbar-logo right">
+        <img class="brand-logo" src="{{ url_for('static', filename='images/logo_ranking_x1_oficial.png') }}" alt="Logo Ranking X1">
+      </div>
+    </div>
+  </header>
+  <nav class="nav-links">
+    <a href="/">Início</a><a href="/agenda">Agenda</a><a href="/partidas">Jogos marcados</a><a href="/resultado-atleta">Resultado do atleta</a><a href="/desafio">Desafios</a><a href="/secretaria">Secretaria</a>
+  </nav>
+  <main class="container">
+    <section class="panel">
+      <label>Categoria
+        <select id="filtroRanking">
+          {% for k,v in ranking_rotulos.items() %}
+            <option value="{{ k }}">{{ v }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </section>
+    <section class="panel">
+      <table class="table" id="rankingTable">
+        <thead><tr><th>Posição</th><th>Nome</th><th>Classe</th><th>Status</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </main>
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
+
+

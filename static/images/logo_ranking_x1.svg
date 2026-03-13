@@ -1,0 +1,11 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">
+  <rect width="240" height="240" rx="32" fill="#12171f"/>
+  <g fill="none" stroke="#d6b56a" stroke-width="6">
+    <ellipse cx="70" cy="120" rx="34" ry="48"/>
+    <ellipse cx="170" cy="120" rx="34" ry="48"/>
+  </g>
+  <circle cx="120" cy="132" r="26" fill="#f2c44f"/>
+  <text x="120" y="78" text-anchor="middle" font-family="Segoe UI,Arial" font-weight="900" font-size="44" fill="#f0d387">X1</text>
+  <text x="120" y="104" text-anchor="middle" font-family="Segoe UI,Arial" font-weight="700" font-size="20" fill="#e9d8a8">RANKING</text>
+  <text x="120" y="210" text-anchor="middle" font-family="Segoe UI,Arial" font-weight="700" font-size="24" fill="#f0d387">SÃO GABRIEL</text>
+</svg>
