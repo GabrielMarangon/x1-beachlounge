@@ -331,12 +331,31 @@ def create_app() -> Flask:
     def api_excluir_partida(partida_id: str):
         data = _load_all()
         partidas = data['partidas']
-        idx = next((i for i, p in enumerate(partidas) if p.get('id') == partida_id), None)
-        if idx is None:
+        partida = next((p for p in partidas if p.get('id') == partida_id), None)
+        if partida is None:
             return jsonify({'ok': False, 'mensagem': 'Partida não encontrada.'}), 404
-        removida = partidas.pop(idx)
+        if partida.get('status') == 'cancelada':
+            return jsonify({'ok': False, 'mensagem': 'Partida já está cancelada.'}), 400
+        partida['status_anterior'] = partida.get('status', 'marcada')
+        partida['status'] = 'cancelada'
+        partida['cancelada_em'] = datetime.now().isoformat(timespec='minutes')
         _save_partidas(partidas)
-        return jsonify({'ok': True, 'mensagem': 'Partida excluída com sucesso.', 'partida': removida})
+        return jsonify({'ok': True, 'mensagem': 'Partida cancelada. Você pode desfazer.', 'partida': partida})
+
+    @app.route('/api/partidas/<partida_id>/restaurar', methods=['POST'])
+    def api_restaurar_partida(partida_id: str):
+        data = _load_all()
+        partidas = data['partidas']
+        partida = next((p for p in partidas if p.get('id') == partida_id), None)
+        if partida is None:
+            return jsonify({'ok': False, 'mensagem': 'Partida não encontrada.'}), 404
+        if partida.get('status') != 'cancelada':
+            return jsonify({'ok': False, 'mensagem': 'Apenas partidas canceladas podem ser restauradas.'}), 400
+        partida['status'] = partida.get('status_anterior', 'marcada')
+        partida.pop('status_anterior', None)
+        partida.pop('cancelada_em', None)
+        _save_partidas(partidas)
+        return jsonify({'ok': True, 'mensagem': 'Exclusão desfeita com sucesso.', 'partida': partida})
 
     @app.route('/api/registrar-resultado', methods=['POST'])
     def api_registrar_resultado():

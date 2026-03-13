@@ -137,13 +137,27 @@ async function excluirPartida(partidaId) {
   if (!ok) return;
   try {
     const out = await api(`/api/partidas/${partidaId}`, { method: 'DELETE' });
-    alert(out.mensagem || 'Partida excluída.');
+    alert(out.mensagem || 'Partida cancelada.');
     await carregarPartidas();
     if (document.body.dataset.page === 'agenda') {
       await carregarAgenda();
     }
   } catch (err) {
     alert(err.message || 'Falha ao excluir partida.');
+  }
+}
+
+async function desfazerExclusaoPartida(partidaId) {
+  if (!partidaId) return;
+  try {
+    const out = await api(`/api/partidas/${partidaId}/restaurar`, { method: 'POST' });
+    alert(out.mensagem || 'Exclusão desfeita.');
+    await carregarPartidas();
+    if (document.body.dataset.page === 'agenda') {
+      await carregarAgenda();
+    }
+  } catch (err) {
+    alert(err.message || 'Falha ao desfazer exclusão.');
   }
 }
 
@@ -166,6 +180,7 @@ async function carregarPartidas() {
     if (status === 'marcada') return '<span class="status-chip status-verde">Marcada</span>';
     if (status === 'finalizada') return '<span class="status-chip status-cinza">Finalizada</span>';
     if (status === 'desconsiderada') return '<span class="status-chip status-vermelho">Desconsiderada</span>';
+    if (status === 'cancelada') return '<span class="status-chip status-amarelo">Cancelada</span>';
     return `<span class="status-chip status-amarelo">${status || '-'}</span>`;
   };
   tbody.innerHTML = lista.map(p => `
@@ -179,13 +194,19 @@ async function carregarPartidas() {
       <td>
         ${(p.status === 'marcada' || p.status === 'em_andamento')
           ? `<button type="button" class="btn-excluir-partida" data-partida-id="${p.id}">Excluir</button>`
-          : '-'}
+          : (p.status === 'cancelada'
+            ? `<button type="button" class="btn-desfazer-exclusao" data-partida-id="${p.id}">Desfazer exclusão</button>`
+            : '-')
+        }
       </td>
     </tr>
   `).join('') || '<tr><td colspan="7">Nenhuma partida encontrada para os filtros selecionados.</td></tr>';
 
   tbody.querySelectorAll('.btn-excluir-partida').forEach((btn) => {
     btn.addEventListener('click', () => excluirPartida(btn.dataset.partidaId));
+  });
+  tbody.querySelectorAll('.btn-desfazer-exclusao').forEach((btn) => {
+    btn.addEventListener('click', () => desfazerExclusaoPartida(btn.dataset.partidaId));
   });
 }
 
