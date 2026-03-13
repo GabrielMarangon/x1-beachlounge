@@ -227,6 +227,19 @@ async function carregarPartidas() {
   });
 }
 
+async function apagarResultado(partidaId, onDone) {
+  if (!partidaId) return;
+  const ok = window.confirm('Deseja apagar este resultado e reverter o ranking da categoria?');
+  if (!ok) return;
+  try {
+    const out = await api(`/api/apagar-resultado/${partidaId}`, { method: 'DELETE' });
+    alert(out.mensagem || 'Resultado apagado com sucesso.');
+    if (typeof onDone === 'function') await onDone();
+  } catch (err) {
+    alert(err.message || 'Falha ao apagar resultado.');
+  }
+}
+
 async function carregarAtleta() {
   const atletaId = document.body.dataset.atletaId;
   if (!atletaId) return;
@@ -269,7 +282,23 @@ async function carregarAtleta() {
 
   const histTbody = document.querySelector('#historicoTable tbody');
   if (histTbody) {
-    histTbody.innerHTML = data.historico_partidas.map(p => `<tr><td>${p.data}</td><td>${p.horario}</td><td>${p.status}</td><td>${p.resultado || '-'}</td></tr>`).join('') || '<tr><td colspan="4">Sem histórico.</td></tr>';
+    histTbody.innerHTML = data.historico_partidas.map(p => `
+      <tr>
+        <td>${p.data || '-'}</td>
+        <td>${p.horario || '-'}</td>
+        <td>${p.status || '-'}</td>
+        <td>${p.resultado || '-'}</td>
+        <td>
+          ${(p.status === 'finalizada' || p.status === 'realizada')
+            ? `<button type="button" class="btn-apagar-resultado" data-partida-id="${p.id}">Apagar resultado</button>`
+            : '-'}
+        </td>
+      </tr>
+    `).join('') || '<tr><td colspan="5">Sem histórico.</td></tr>';
+
+    histTbody.querySelectorAll('.btn-apagar-resultado').forEach((btn) => {
+      btn.addEventListener('click', () => apagarResultado(btn.dataset.partidaId, carregarAtleta));
+    });
   }
 }
 
@@ -516,6 +545,31 @@ async function carregarPartidasAtletaParaResultado() {
         </tr>
       `).join('')
       : '<tr><td colspan="5">Nenhuma partida pendente para este atleta.</td></tr>';
+  }
+
+  const resultadosTbody = document.querySelector('#resultadosAtletaTable tbody');
+  if (resultadosTbody) {
+    const historico = data.historico || [];
+    resultadosTbody.innerHTML = historico.length
+      ? historico.map((p) => `
+        <tr>
+          <td>${p.data || '-'}</td>
+          <td>${p.horario || '-'}</td>
+          <td>${p.desafiante_nome} x ${p.desafiado_nome}</td>
+          <td>${p.resultado || '-'}</td>
+          <td>${p.status || '-'}</td>
+          <td>
+            ${(p.status === 'finalizada' || p.status === 'realizada')
+              ? `<button type="button" class="btn-apagar-resultado" data-partida-id="${p.id}">Apagar resultado</button>`
+              : '-'}
+          </td>
+        </tr>
+      `).join('')
+      : '<tr><td colspan="6">Sem resultados lançados para este atleta.</td></tr>';
+
+    resultadosTbody.querySelectorAll('.btn-apagar-resultado').forEach((btn) => {
+      btn.addEventListener('click', () => apagarResultado(btn.dataset.partidaId, carregarPartidasAtletaParaResultado));
+    });
   }
 
   atualizarOpcoesVencedorAtleta();

@@ -84,7 +84,7 @@ def _resumo_home(data: Dict[str, Any]) -> Dict[str, Any]:
     ultimos_resultados = [
         _enriquecer_partida(p, atletas_map, quadras_map)
         for p in partidas
-        if p.get('status') == 'finalizada'
+        if p.get('status') in {'finalizada', 'realizada'}
     ]
     ultimos_resultados = sorted(
         ultimos_resultados,
@@ -133,7 +133,7 @@ def _estatisticas_atleta(atleta_id: str, partidas: List[Dict[str, Any]]) -> Dict
 
     for p in partidas:
         participa = p.get('desafiante') == atleta_id or p.get('desafiado') == atleta_id
-        if not participa or p.get('status') != 'finalizada':
+        if not participa or p.get('status') not in {'finalizada', 'realizada'}:
             continue
 
         jogos_finalizados += 1
@@ -303,7 +303,7 @@ def create_app() -> Flask:
         partidas_atleta = ordenar_partidas_por_data(partidas_atleta)
 
         lancaveis = [p for p in partidas_atleta if p.get('status') in {'marcada', 'em_andamento'}]
-        historico = [p for p in partidas_atleta if p.get('status') == 'finalizada']
+        historico = [p for p in partidas_atleta if p.get('status') in {'finalizada', 'realizada'}]
 
         return jsonify({
             'ok': True,
@@ -493,6 +493,22 @@ def create_app() -> Flask:
         partida['vencedor'] = payload.get('vencedor')
         partida['wo'] = bool(payload.get('wo', False))
         partida['observacoes'] = payload.get('observacoes', partida.get('observacoes', ''))
+        partida['status_antes_resultado'] = partida.get('status', 'marcada')
+
+        # Snapshot para permitir apagar resultado com reversão segura do ranking.
+        ranking_partida = partida.get('categoria')
+        snapshot = {}
+        for a in data['atletas']:
+            if a.get('ranking') == ranking_partida:
+                snapshot[a['id']] = {
+                    'posicao': a.get('posicao'),
+                    'wo_consecutivos': a.get('wo_consecutivos'),
+                    'ultimo_jogo': a.get('ultimo_jogo'),
+                    'ultimo_desafio': a.get('ultimo_desafio'),
+                    'bloqueado_ate': a.get('bloqueado_ate'),
+                    'observacoes': a.get('observacoes'),
+                }
+        partida['snapshot_pre_resultado'] = snapshot
 
         ok, msg = atualizar_ranking_apos_resultado(partida, data['atletas'])
         if not ok:
@@ -501,6 +517,48 @@ def create_app() -> Flask:
         _save_atletas(data['atletas'])
         _save_partidas(data['partidas'])
         return jsonify({'ok': True, 'mensagem': msg, 'partida': partida})
+
+    @app.route('/api/apagar-resultado/<partida_id>', methods=['DELETE'])
+    def api_apagar_resultado(partida_id: str):
+        data = _load_all()
+        partida = next((p for p in data['partidas'] if p.get('id') == partida_id), None)
+        if not partida:
+            return jsonify({'ok': False, 'mensagem': 'Partida não encontrada.'}), 404
+
+        if partida.get('status') not in {'finalizada', 'realizada'}:
+            return jsonify({'ok': False, 'mensagem': 'Somente partidas com resultado lançado podem ser apagadas.'}), 400
+
+        snapshot = partida.get('snapshot_pre_resultado')
+        if not isinstance(snapshot, dict) or not snapshot:
+            return jsonify({
+                'ok': False,
+                'mensagem': 'Não foi possível reverter automaticamente este resultado (snapshot ausente).',
+            }), 400
+
+        atletas_map = indice_por_id(data['atletas'])
+        for atleta_id, estado in snapshot.items():
+            atleta = atletas_map.get(atleta_id)
+            if not atleta:
+                continue
+            atleta['posicao'] = estado.get('posicao')
+            atleta['wo_consecutivos'] = estado.get('wo_consecutivos', 0)
+            atleta['ultimo_jogo'] = estado.get('ultimo_jogo')
+            atleta['ultimo_desafio'] = estado.get('ultimo_desafio')
+            atleta['bloqueado_ate'] = estado.get('bloqueado_ate')
+            atleta['observacoes'] = estado.get('observacoes', '')
+
+        partida['status'] = partida.get('status_antes_resultado', 'marcada')
+        partida['resultado'] = None
+        partida['vencedor'] = None
+        partida['wo'] = False
+        partida['data_registro_resultado'] = None
+        partida['resultado_apagado_em'] = datetime.now().isoformat(timespec='minutes')
+        partida.pop('snapshot_pre_resultado', None)
+        partida.pop('status_antes_resultado', None)
+
+        _save_atletas(data['atletas'])
+        _save_partidas(data['partidas'])
+        return jsonify({'ok': True, 'mensagem': 'Resultado apagado e ranking revertido com sucesso.', 'partida': partida})
 
     @app.route('/api/secretaria/status-atleta', methods=['POST'])
     def api_secretaria_status():

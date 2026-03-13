@@ -87,7 +87,7 @@ def atualizar_ranking_apos_resultado(partida: Dict[str, Any], atletas: List[Dict
     desafiante['ultimo_desafio'] = now.isoformat(timespec='minutes')
     desafiado['ultimo_desafio'] = now.isoformat(timespec='minutes')
 
-    partida['status'] = 'realizada'
+    partida['status'] = 'finalizada'
     partida['data_registro_resultado'] = now.isoformat(timespec='minutes')
 
     return True, 'Ranking atualizado com sucesso.'

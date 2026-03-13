@@ -483,6 +483,15 @@ button:hover {
   background: linear-gradient(135deg, #3f80bc 0%, #2b6497 100%);
 }
 
+.btn-apagar-resultado {
+  width: auto;
+  margin-top: 0;
+  padding: 0.34rem 0.58rem;
+  font-size: 0.8rem;
+  border-color: #a3641f;
+  background: linear-gradient(135deg, #d59b45 0%, #b27320 100%);
+}
+
 /* Agenda em grade por horário x quadra */
 .agenda-matrix .cell-slot {
   font-size: 0.85rem;
