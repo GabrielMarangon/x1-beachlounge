@@ -43,6 +43,23 @@ function destacarMenuAtivo() {
 let partidasLancaveisAtleta = [];
 let nomeAtletaSelecionadoDesafio = '';
 
+async function enviarDesafioParaSecretaria(desafianteId, desafiadoId) {
+  if (!desafianteId || !desafiadoId) return;
+  try {
+    const out = await api('/api/desafio/registrar', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        desafiante_id: desafianteId,
+        desafiado_id: desafiadoId,
+      }),
+    });
+    setMsg('msgCopiarQuadro', out.mensagem || 'Desafio enviado para a secretaria.', true);
+  } catch (err) {
+    setMsg('msgCopiarQuadro', err.message || 'Falha ao enviar desafio para a secretaria.', false);
+  }
+}
+
 async function copiarQuadroDesafio() {
   const desafio = document.getElementById('qDesafio')?.textContent?.trim() || 'NOME DO DESAFIANTE x NOME DO DESAFIADO';
   const limite = document.getElementById('qLimite')?.textContent?.trim() || 'DE = ___ ATÉ = ___';
@@ -281,11 +298,42 @@ async function carregarAtletasSelects() {
 }
 
 async function configurarSecretaria() {
+  async function carregarPendentesSecretaria() {
+    const tbody = document.querySelector('#pendentesSecretariaTable tbody');
+    if (!tbody) return;
+    const lista = await api('/api/secretaria/desafios-pendentes');
+    tbody.innerHTML = lista.map((p) => `
+      <tr>
+        <td><strong>${p.desafiante_nome}</strong> x <strong>${p.desafiado_nome}</strong></td>
+        <td>${p.categoria_label || p.categoria || '-'}</td>
+        <td>${(p.data_desafio || '').replace('T', ' ') || '-'}</td>
+        <td><button type="button" class="btn-agendar-pendente" data-partida-id="${p.id}" data-desafiante="${p.desafiante}" data-desafiado="${p.desafiado}">Agendar este jogo</button></td>
+      </tr>
+    `).join('') || '<tr><td colspan="4">Sem desafios pendentes.</td></tr>';
+
+    tbody.querySelectorAll('.btn-agendar-pendente').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const partidaId = btn.dataset.partidaId;
+        const desafiante = btn.dataset.desafiante;
+        const desafiado = btn.dataset.desafiado;
+        const hidden = document.getElementById('agendarPartidaPendenteId');
+        const sDesafiante = document.getElementById('agendarDesafiante');
+        const sDesafiado = document.getElementById('agendarDesafiado');
+        if (hidden) hidden.value = partidaId;
+        if (sDesafiante) sDesafiante.value = desafiante;
+        if (sDesafiado) sDesafiado.value = desafiado;
+        setMsg('msgPendentesSecretaria', 'Desafio carregado no formulário. Defina data, horário e quadra para confirmar.', true);
+        document.getElementById('formAgendar')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    });
+  }
+
   const formAgendar = document.getElementById('formAgendar');
   if (formAgendar) {
     formAgendar.addEventListener('submit', async (e) => {
       e.preventDefault();
       try {
+        const partidaPendenteId = document.getElementById('agendarPartidaPendenteId')?.value || '';
         const payload = {
           desafiante: document.getElementById('agendarDesafiante').value,
           desafiado: document.getElementById('agendarDesafiado').value,
@@ -295,12 +343,17 @@ async function configurarSecretaria() {
           tipo_confronto: document.getElementById('agendarTipo').value,
           status: 'marcada',
         };
-        const out = await api('/api/agendar', {
+        const endpoint = partidaPendenteId ? '/api/secretaria/agendar-pendente' : '/api/agendar';
+        const body = partidaPendenteId ? { ...payload, partida_id: partidaPendenteId } : payload;
+        const out = await api(endpoint, {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify(payload),
+          body: JSON.stringify(body),
         });
         setMsg('msgAgendar', out.mensagem, true);
+        const hidden = document.getElementById('agendarPartidaPendenteId');
+        if (hidden) hidden.value = '';
+        await carregarPendentesSecretaria();
       } catch (err) {
         setMsg('msgAgendar', err.message, false);
       }
@@ -357,6 +410,8 @@ async function configurarSecretaria() {
       }
     });
   }
+
+  await carregarPendentesSecretaria();
 }
 
 async function carregarDesafios() {
@@ -386,7 +441,7 @@ async function carregarDesafios() {
       <td>${d.classe}</td>
       <td><span class="status-chip ${st.cls}">${st.label}</span></td>
       <td>${d.motivo}</td>
-      <td><button type="button" class="btn-gerar-quadro-desafio" data-oponente="${d.nome}" ${d.pode_desafiar ? '' : 'disabled'}>Gerar quadro</button></td>
+      <td><button type="button" class="btn-gerar-quadro-desafio" data-oponente="${d.nome}" data-oponente-id="${d.id || ''}" ${d.pode_desafiar ? '' : 'disabled'}>Gerar quadro</button></td>
     </tr>
   `;
   }).join('') || '<tr><td colspan="6">Sem desafios possíveis.</td></tr>';
@@ -412,6 +467,7 @@ async function carregarDesafios() {
   document.querySelectorAll('.btn-gerar-quadro-desafio').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const oponente = btn.dataset.oponente;
+      const oponenteId = btn.dataset.oponenteId;
       document.getElementById('qDesafio').textContent = `${nomeAtletaSelecionadoDesafio} x ${oponente}`;
 
       const partidas = await api(`/api/partidas?atleta=${encodeURIComponent(nomeAtletaSelecionadoDesafio)}`);
@@ -422,6 +478,11 @@ async function carregarDesafios() {
       );
       document.getElementById('qDia').textContent = marcadaPar ? marcadaPar.data : '___';
       document.getElementById('qHora').textContent = marcadaPar ? marcadaPar.horario : '___';
+
+      const desafianteId = document.getElementById('desafioAtleta')?.value;
+      if (desafianteId && oponenteId) {
+        await enviarDesafioParaSecretaria(desafianteId, oponenteId);
+      }
     });
   });
 }

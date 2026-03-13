@@ -13,10 +13,12 @@ from agenda import (
     listar_partidas_marcadas,
     listar_partidas_por_atleta,
     listar_partidas_por_data,
+    verificar_conflito_atleta,
+    verificar_conflito_quadras,
 )
 from ranking_logic import atualizar_ranking_apos_resultado
 from regras_ranking import listar_desafios_possiveis, pode_desafiar, verificar_status_atleta
-from utils import carregar_json, formatar_status, indice_por_id, ordenar_partidas_por_data, salvar_json
+from utils import carregar_json, formatar_status, gerar_id_partida, indice_por_id, ordenar_partidas_por_data, salvar_json
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / 'dados'
@@ -326,6 +328,117 @@ def create_app() -> Flask:
             return jsonify({'ok': False, 'mensagem': msg}), 400
         _save_partidas(data['partidas'])
         return jsonify({'ok': True, 'mensagem': msg, 'partida': partida})
+
+    @app.route('/api/secretaria/desafios-pendentes')
+    def api_desafios_pendentes_secretaria():
+        data = _load_all()
+        atletas_map = indice_por_id(data['atletas'])
+        quadras_map = indice_por_id(data['quadras'])
+        pendentes = [
+            _enriquecer_partida(p, atletas_map, quadras_map)
+            for p in data['partidas']
+            if p.get('status') == 'pendente_agendamento'
+        ]
+        pendentes = sorted(pendentes, key=lambda p: p.get('data_desafio', ''), reverse=True)
+        return jsonify(pendentes)
+
+    @app.route('/api/desafio/registrar', methods=['POST'])
+    def api_registrar_desafio_para_secretaria():
+        data = _load_all()
+        payload = request.get_json(silent=True) or {}
+        desafiante_id = payload.get('desafiante_id')
+        desafiado_id = payload.get('desafiado_id')
+        if not desafiante_id or not desafiado_id:
+            return jsonify({'ok': False, 'mensagem': 'Desafiante e desafiado são obrigatórios.'}), 400
+
+        atletas = data['atletas']
+        desafiante = next((a for a in atletas if a.get('id') == desafiante_id), None)
+        desafiado = next((a for a in atletas if a.get('id') == desafiado_id), None)
+        if not desafiante or not desafiado:
+            return jsonify({'ok': False, 'mensagem': 'Atletas não encontrados.'}), 404
+
+        valido, motivo = pode_desafiar(desafiante, desafiado)
+        if not valido:
+            return jsonify({'ok': False, 'mensagem': motivo}), 400
+
+        existente = next(
+            (
+                p for p in data['partidas']
+                if p.get('status') in {'pendente_agendamento', 'marcada', 'em_andamento'}
+                and p.get('desafiante') == desafiante_id
+                and p.get('desafiado') == desafiado_id
+            ),
+            None,
+        )
+        if existente:
+            return jsonify({'ok': True, 'mensagem': 'Desafio já está na fila da secretaria.', 'partida': existente})
+
+        partida = {
+            'id': gerar_id_partida(data['partidas']),
+            'desafiante': desafiante_id,
+            'desafiado': desafiado_id,
+            'data': '',
+            'horario': '',
+            'quadra': '',
+            'categoria': desafiante.get('ranking'),
+            'tipo_confronto': 'ranking_x1',
+            'status': 'pendente_agendamento',
+            'resultado': None,
+            'vencedor': None,
+            'wo': False,
+            'data_registro_resultado': None,
+            'data_desafio': datetime.now().isoformat(timespec='minutes'),
+            'observacoes': payload.get('observacoes', ''),
+        }
+        data['partidas'].append(partida)
+        _save_partidas(data['partidas'])
+        return jsonify({'ok': True, 'mensagem': 'Desafio enviado para agendamento da secretaria.', 'partida': partida})
+
+    @app.route('/api/secretaria/agendar-pendente', methods=['POST'])
+    def api_agendar_pendente_secretaria():
+        data = _load_all()
+        payload = request.get_json(silent=True) or {}
+        partida_id = payload.get('partida_id')
+        if not partida_id:
+            return jsonify({'ok': False, 'mensagem': 'Partida pendente não informada.'}), 400
+
+        partida = next((p for p in data['partidas'] if p.get('id') == partida_id), None)
+        if not partida:
+            return jsonify({'ok': False, 'mensagem': 'Partida pendente não encontrada.'}), 404
+        if partida.get('status') != 'pendente_agendamento':
+            return jsonify({'ok': False, 'mensagem': 'Partida não está pendente de agendamento.'}), 400
+
+        data_jogo = payload.get('data')
+        horario = payload.get('horario')
+        quadra = payload.get('quadra')
+        if not data_jogo or not horario or not quadra:
+            return jsonify({'ok': False, 'mensagem': 'Data, horário e quadra são obrigatórios.'}), 400
+
+        horarios_validos = {h.get('hora') for h in data['horarios']}
+        if horario not in horarios_validos:
+            return jsonify({'ok': False, 'mensagem': f"Horário inválido. Use apenas: {', '.join(sorted(horarios_validos))}."}), 400
+
+        conflito_q, msg_q = verificar_conflito_quadras(data['partidas'], data_jogo, horario, quadra, partida_id_ignorar=partida_id)
+        if conflito_q:
+            return jsonify({'ok': False, 'mensagem': msg_q}), 400
+
+        desafiante_id = partida.get('desafiante')
+        desafiado_id = partida.get('desafiado')
+        conflito_d, msg_d = verificar_conflito_atleta(data['partidas'], data_jogo, horario, desafiante_id, partida_id_ignorar=partida_id)
+        if conflito_d:
+            return jsonify({'ok': False, 'mensagem': msg_d}), 400
+
+        conflito_r, msg_r = verificar_conflito_atleta(data['partidas'], data_jogo, horario, desafiado_id, partida_id_ignorar=partida_id)
+        if conflito_r:
+            return jsonify({'ok': False, 'mensagem': msg_r}), 400
+
+        partida['data'] = data_jogo
+        partida['horario'] = horario
+        partida['quadra'] = quadra
+        partida['tipo_confronto'] = payload.get('tipo_confronto', partida.get('tipo_confronto', 'ranking_x1'))
+        partida['status'] = 'marcada'
+        _save_partidas(data['partidas'])
+        return jsonify({'ok': True, 'mensagem': 'Partida agendada com sucesso.', 'partida': partida})
 
     @app.route('/api/partidas/<partida_id>', methods=['DELETE'])
     def api_excluir_partida(partida_id: str):

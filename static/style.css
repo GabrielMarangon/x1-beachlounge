@@ -474,6 +474,15 @@ button:hover {
   background: linear-gradient(135deg, #45a96f 0%, #257d4f 100%);
 }
 
+.btn-agendar-pendente {
+  width: auto;
+  margin-top: 0;
+  padding: 0.34rem 0.58rem;
+  font-size: 0.8rem;
+  border-color: #2e6aa0;
+  background: linear-gradient(135deg, #3f80bc 0%, #2b6497 100%);
+}
+
 /* Agenda em grade por horário x quadra */
 .agenda-matrix .cell-slot {
   font-size: 0.85rem;
