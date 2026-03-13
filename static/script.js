@@ -93,7 +93,11 @@ async function carregarAgenda() {
 
   const data = dataInput.value;
   const slots = await api(`/api/agenda?data=${data}`);
-  const horarios = [...new Set(slots.map(s => s.horario))].sort();
+  const partidasDia = await api(`/api/partidas?data=${data}`);
+  const horarios = [...new Set([
+    ...slots.map(s => s.horario),
+    ...partidasDia.map(p => p.horario),
+  ])].sort();
   const quadras = [...new Set(slots.map(s => s.quadra_nome))].sort();
 
   const head = document.querySelector('#agendaTable thead tr');
@@ -101,21 +105,30 @@ async function carregarAgenda() {
     head.innerHTML = `<th>Horário</th>${quadras.map(q => `<th>${q}</th>`).join('')}`;
   }
 
-  const mapa = new Map();
-  slots.forEach((s) => {
-    mapa.set(`${s.horario}__${s.quadra_nome}`, s);
-  });
+  const mapaSlots = new Map();
+  slots.forEach((s) => mapaSlots.set(`${s.horario}__${s.quadra_nome}`, s));
+
+  const mapaPartidas = new Map();
+  partidasDia
+    .filter((p) => p.status === 'marcada' || p.status === 'em_andamento')
+    .forEach((p) => mapaPartidas.set(`${p.horario}__${p.quadra_nome}`, p));
 
   tbody.innerHTML = horarios.map((h) => {
     const cols = quadras.map((q) => {
-      const slot = mapa.get(`${h}__${q}`);
-      if (!slot) return '<td><div class="agenda-cell agenda-conflito">Indisponível</div></td>';
-      if (slot.livre) {
+      const key = `${h}__${q}`;
+      const partida = mapaPartidas.get(key);
+      const slot = mapaSlots.get(key);
+
+      if (partida) {
+        return `<td><div class="agenda-cell agenda-ocupada"><strong>Jogo marcado</strong><span class="mini">${partida.desafiante_nome} x ${partida.desafiado_nome}</span></div></td>`;
+      }
+      if (slot && slot.livre) {
         return '<td><div class="agenda-cell agenda-livre"><strong>Livre</strong><span class="mini">Disponível</span></div></td>';
       }
-      const d = slot.partida?.desafiante_nome || 'Jogo';
-      const r = slot.partida?.desafiado_nome || 'marcado';
-      return `<td><div class="agenda-cell agenda-ocupada"><strong>Jogo marcado</strong><span class="mini">${d} x ${r}</span></div></td>`;
+      if (slot && !slot.livre) {
+        return '<td><div class="agenda-cell agenda-conflito"><strong>Ocupado</strong><span class="mini">Sem detalhes</span></div></td>';
+      }
+      return '<td><div class="agenda-cell agenda-conflito"><strong>Fora da grade</strong><span class="mini">Horário não padrão</span></div></td>';
     }).join('');
     return `<tr><td class="cell-slot">${h}</td>${cols}</tr>`;
   }).join('');
