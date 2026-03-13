@@ -315,11 +315,28 @@ def create_app() -> Flask:
     def api_agendar():
         data = _load_all()
         payload = request.get_json(silent=True) or {}
+        horarios_validos = {h.get('hora') for h in data['horarios']}
+        if payload.get('horario') not in horarios_validos:
+            return jsonify({
+                'ok': False,
+                'mensagem': f"Horário inválido. Use apenas: {', '.join(sorted(horarios_validos))}.",
+            }), 400
         ok, msg, partida = agendar_partida(data['atletas'], data['partidas'], payload)
         if not ok:
             return jsonify({'ok': False, 'mensagem': msg}), 400
         _save_partidas(data['partidas'])
         return jsonify({'ok': True, 'mensagem': msg, 'partida': partida})
+
+    @app.route('/api/partidas/<partida_id>', methods=['DELETE'])
+    def api_excluir_partida(partida_id: str):
+        data = _load_all()
+        partidas = data['partidas']
+        idx = next((i for i, p in enumerate(partidas) if p.get('id') == partida_id), None)
+        if idx is None:
+            return jsonify({'ok': False, 'mensagem': 'Partida não encontrada.'}), 404
+        removida = partidas.pop(idx)
+        _save_partidas(partidas)
+        return jsonify({'ok': True, 'mensagem': 'Partida excluída com sucesso.', 'partida': removida})
 
     @app.route('/api/registrar-resultado', methods=['POST'])
     def api_registrar_resultado():

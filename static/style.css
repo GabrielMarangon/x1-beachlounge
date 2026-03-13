@@ -456,6 +456,15 @@ button:hover {
   font-size: 0.82rem;
 }
 
+.btn-excluir-partida {
+  width: auto;
+  margin-top: 0;
+  padding: 0.34rem 0.58rem;
+  font-size: 0.8rem;
+  border-color: #b33f3f;
+  background: linear-gradient(135deg, #c44a4a 0%, #a63131 100%);
+}
+
 /* Agenda em grade por horário x quadra */
 .agenda-matrix .cell-slot {
   font-size: 0.85rem;

@@ -94,10 +94,7 @@ async function carregarAgenda() {
   const data = dataInput.value;
   const slots = await api(`/api/agenda?data=${data}`);
   const partidasDia = await api(`/api/partidas?data=${data}`);
-  const horarios = [...new Set([
-    ...slots.map(s => s.horario),
-    ...partidasDia.map(p => p.horario),
-  ])].sort();
+  const horarios = [...new Set(slots.map(s => s.horario))].sort();
   const quadras = [...new Set(slots.map(s => s.quadra_nome))].sort();
 
   const head = document.querySelector('#agendaTable thead tr');
@@ -128,10 +125,26 @@ async function carregarAgenda() {
       if (slot && !slot.livre) {
         return '<td><div class="agenda-cell agenda-conflito"><strong>Ocupado</strong><span class="mini">Sem detalhes</span></div></td>';
       }
-      return '<td><div class="agenda-cell agenda-conflito"><strong>Fora da grade</strong><span class="mini">Horário não padrão</span></div></td>';
+      return '<td><div class="agenda-cell agenda-conflito"><strong>Indisponível</strong><span class="mini">Sem slot disponível</span></div></td>';
     }).join('');
     return `<tr><td class="cell-slot">${h}</td>${cols}</tr>`;
   }).join('');
+}
+
+async function excluirPartida(partidaId) {
+  if (!partidaId) return;
+  const ok = window.confirm('Deseja excluir esta partida da agenda?');
+  if (!ok) return;
+  try {
+    const out = await api(`/api/partidas/${partidaId}`, { method: 'DELETE' });
+    alert(out.mensagem || 'Partida excluída.');
+    await carregarPartidas();
+    if (document.body.dataset.page === 'agenda') {
+      await carregarAgenda();
+    }
+  } catch (err) {
+    alert(err.message || 'Falha ao excluir partida.');
+  }
 }
 
 async function carregarPartidas() {
@@ -163,8 +176,17 @@ async function carregarPartidas() {
       <td><strong>${p.desafiante_nome}</strong> x <strong>${p.desafiado_nome}</strong></td>
       <td>${p.categoria_label}</td>
       <td>${badge(p.status)}</td>
+      <td>
+        ${(p.status === 'marcada' || p.status === 'em_andamento')
+          ? `<button type="button" class="btn-excluir-partida" data-partida-id="${p.id}">Excluir</button>`
+          : '-'}
+      </td>
     </tr>
-  `).join('') || '<tr><td colspan="6">Nenhuma partida encontrada para os filtros selecionados.</td></tr>';
+  `).join('') || '<tr><td colspan="7">Nenhuma partida encontrada para os filtros selecionados.</td></tr>';
+
+  tbody.querySelectorAll('.btn-excluir-partida').forEach((btn) => {
+    btn.addEventListener('click', () => excluirPartida(btn.dataset.partidaId));
+  });
 }
 
 async function carregarAtleta() {
