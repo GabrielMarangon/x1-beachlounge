@@ -42,6 +42,32 @@ function destacarMenuAtivo() {
 
 let partidasLancaveisAtleta = [];
 let nomeAtletaSelecionadoDesafio = '';
+let rankingAtualCache = [];
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function statusDesafioVisual(item) {
+  if (item.pode_desafiar) return { cls: 'desafio-apto', label: 'Apto ✅' };
+  return { cls: 'desafio-bloqueado', label: 'Bloqueado 🚫' };
+}
+
+function montarTextoRanking() {
+  const select = document.getElementById('filtroRanking');
+  const categoria = select?.selectedOptions?.[0]?.textContent || 'Ranking';
+  const linhas = [
+    `RANKING BTC 2026 - ${categoria}`,
+    '',
+    ...rankingAtualCache.map((atleta) => `${atleta.posicao}. ${atleta.nome} (${atleta.classe || 'Sem classe'})`),
+  ];
+  return linhas.join('\n');
+}
 
 async function enviarDesafioParaSecretaria(desafianteId, desafiadoId) {
   if (!desafianteId || !desafiadoId) return;
@@ -93,6 +119,7 @@ async function carregarRanking() {
 
   const ranking = select.value;
   const atletas = await api(`/api/ranking?ranking=${ranking}`);
+  rankingAtualCache = atletas;
   tbody.innerHTML = atletas.map(a => `
     <tr>
       <td>${a.posicao}</td>
@@ -101,6 +128,31 @@ async function carregarRanking() {
       <td><span class="status-chip ${statusClass(a.status_visual?.cor)}">${a.status_visual?.label || '-'}</span></td>
     </tr>
   `).join('');
+}
+
+async function copiarRanking() {
+  const texto = montarTextoRanking();
+  if (!rankingAtualCache.length) {
+    setMsg('msgRankingShare', 'Nenhum ranking carregado para copiar.', false);
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(texto);
+    setMsg('msgRankingShare', 'Lista do ranking copiada.');
+  } catch (err) {
+    setMsg('msgRankingShare', 'Falha ao copiar a lista do ranking.', false);
+  }
+}
+
+function compartilharRankingWhatsapp() {
+  const texto = montarTextoRanking();
+  if (!rankingAtualCache.length) {
+    setMsg('msgRankingShare', 'Nenhum ranking carregado para compartilhar.', false);
+    return;
+  }
+  const url = `https://wa.me/?text=${encodeURIComponent(texto)}`;
+  window.open(url, '_blank', 'noopener');
+  setMsg('msgRankingShare', 'WhatsApp aberto com a lista pronta para envio.');
 }
 
 async function carregarAgenda() {
@@ -272,7 +324,10 @@ async function carregarAtleta() {
 
   const desafiosUl = document.getElementById('desafiosPossiveis');
   if (desafiosUl) {
-    desafiosUl.innerHTML = data.desafios_possiveis.map(d => `<li>${d.posicao} - ${d.nome} (${d.classe}) : ${d.pode_desafiar ? 'Apto' : 'Bloqueado'} (${d.motivo})</li>`).join('') || '<li>Sem desafios possíveis no momento.</li>';
+    desafiosUl.innerHTML = data.desafios_possiveis.map((d) => {
+      const st = statusDesafioVisual(d);
+      return `<li><strong>${d.posicao} - ${escapeHtml(d.nome)}</strong> (${escapeHtml(d.classe)}) <span class="${st.cls}">${st.label}</span><br><span class="hint">${escapeHtml(d.motivo)}</span></li>`;
+    }).join('') || '<li>Sem desafios possíveis no momento.</li>';
   }
 
   const podeUl = document.getElementById('podeSerDesafiado');
@@ -324,6 +379,30 @@ async function carregarAtletasSelects() {
       .map(p => `<option value="${p.id}">${p.id} - ${p.data} ${p.horario} - ${p.desafiante_nome} x ${p.desafiado_nome}</option>`)
       .join('');
   }
+
+  atualizarOpcoesVencedorSecretaria(partidas);
+}
+
+function atualizarOpcoesVencedorSecretaria(partidasBase = null) {
+  const partidaSel = document.getElementById('resultadoPartida');
+  const vencedorSel = document.getElementById('resultadoVencedor');
+  if (!partidaSel || !vencedorSel) return;
+
+  const atualizar = async () => {
+    const partidas = partidasBase || await api('/api/partidas');
+    const partida = partidas.find((item) => item.id === partidaSel.value);
+    if (!partida) {
+      vencedorSel.innerHTML = '<option value="">Selecione a partida</option>';
+      return;
+    }
+    vencedorSel.innerHTML = `
+      <option value="${partida.desafiante}">${partida.desafiante_nome} (desafiante)</option>
+      <option value="${partida.desafiado}">${partida.desafiado_nome} (desafiado)</option>
+    `;
+  };
+
+  atualizar();
+  partidaSel.onchange = atualizar;
 }
 
 async function configurarSecretaria() {
@@ -407,6 +486,8 @@ async function configurarSecretaria() {
           body: JSON.stringify(payload),
         });
         setMsg('msgResultado', out.mensagem, true);
+        await carregarAtletasSelects();
+        await carregarPendentesSecretaria();
       } catch (err) {
         setMsg('msgResultado', err.message, false);
       }
@@ -434,6 +515,7 @@ async function configurarSecretaria() {
           body: JSON.stringify(payload),
         });
         setMsg('msgStatusAtleta', out.mensagem, true);
+        await carregarAtletasSelects();
       } catch (err) {
         setMsg('msgStatusAtleta', err.message, false);
       }
@@ -452,26 +534,14 @@ async function carregarDesafios() {
 
   nomeAtletaSelecionadoDesafio = document.querySelector(`#desafioAtleta option[value="${atletaId}"]`)?.textContent?.split(' (')[0] || 'DESAFIANTE';
 
-  const statusDesafio = (d) => {
-    if (d.pode_desafiar) return { cls: 'status-verde', label: 'Pode desafiar' };
-    const motivo = (d.motivo || '').toLowerCase();
-    if (motivo.includes('em desafio')) {
-      return { cls: 'status-amarelo', label: 'Em desafio' };
-    }
-    if (motivo.includes('prazo') || motivo.includes('aguardar') || motivo.includes('bloqueio')) {
-      return { cls: 'status-amarelo', label: 'Atenção' };
-    }
-    return { cls: 'status-vermelho', label: 'Bloqueado' };
-  };
-
   tbody.innerHTML = desafios.map(d => {
-    const st = statusDesafio(d);
+    const st = statusDesafioVisual(d);
     return `
     <tr>
       <td>${d.posicao}</td>
       <td>${d.nome}</td>
       <td>${d.classe}</td>
-      <td><span class="status-chip ${st.cls}">${st.label}</span></td>
+      <td><span class="${st.cls}">${st.label}</span></td>
       <td>${d.motivo}</td>
       <td><button type="button" class="btn-gerar-quadro-desafio" data-oponente="${d.nome}" data-oponente-id="${d.id || ''}" ${d.pode_desafiar ? '' : 'disabled'}>Gerar quadro</button></td>
     </tr>
@@ -630,6 +700,7 @@ async function configurarResultadoAtleta() {
       });
       setMsg('msgResultadoAtleta', out.mensagem, true);
       await carregarPartidasAtletaParaResultado();
+      await carregarRanking();
     } catch (err) {
       setMsg('msgResultadoAtleta', err.message, false);
     }
@@ -646,6 +717,8 @@ function boot() {
   if (page === 'ranking') {
     carregarRanking();
     document.getElementById('filtroRanking')?.addEventListener('change', carregarRanking);
+    document.getElementById('btnCopiarRanking')?.addEventListener('click', copiarRanking);
+    document.getElementById('btnWhatsappRanking')?.addEventListener('click', compartilharRankingWhatsapp);
   }
 
   if (page === 'agenda') {

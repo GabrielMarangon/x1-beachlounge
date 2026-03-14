@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>X1 BTC - Regulamento</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body data-page="regulamento">
+  <header class="topbar">
+    <div class="topbar-grid">
+      <div class="topbar-logo left">
+        <img class="brand-logo" src="{{ url_for('static', filename='images/logo_btc_oficial.png') }}" alt="Logo Brasil Tênis Clube">
+      </div>
+      <div class="topbar-title">
+        <span class="topbar-club">Brasil Tênis Clube</span>
+        <h1>Regulamento do Ranking</h1>
+        <p>Consulta rápida das regras oficiais do X1 BTC 2026</p>
+      </div>
+      <div class="topbar-logo right">
+        <img class="brand-logo" src="{{ url_for('static', filename='images/logo_ranking_x1_oficial.png') }}" alt="Logo Ranking X1">
+      </div>
+    </div>
+  </header>
+
+  <nav class="nav-links">
+    <a href="/">Início</a><a href="/ranking">Ranking</a><a href="/agenda">Agenda</a><a href="/partidas">Jogos marcados</a><a href="/desafio">Desafios</a><a href="/resultado-atleta">Resultado do atleta</a><a href="/secretaria">Secretaria</a>
+  </nav>
+
+  <main class="container">
+    <section class="panel regulamento-panel">
+      <h2>1. Desafios</h2>
+      <ol class="regulamento-lista">
+        <li>Cada atleta pode desafiar até 3 posições acima. Se o desafiante vencer, assume a posição do desafiado; se perder, as posições ficam inalteradas.</li>
+        <li>O jogo é em 1 set no-ad até 8. Em 7x7, disputa-se super break até 7 pontos.</li>
+        <li>A responsabilidade pelas bolas é do desafiante.</li>
+        <li>Os jogos devem ser agendados previamente no grupo.</li>
+        <li>Mesmo em caso de WO, o resultado deve ser lançado no dia da partida.</li>
+        <li>O prazo para realização do desafio é de 10 dias.</li>
+        <li>Depois da partida, o desafiante fica bloqueado para novo desafio até o meio-dia do dia seguinte. O desafiado pode desafiar imediatamente outro atleta, respeitando a nova posição e sem repetir o mesmo confronto por 10 dias, salvo se um dos dois fizer outra partida antes.</li>
+        <li>O resultado deve ser informado até 23:59 do dia do confronto; caso contrário, a partida será desconsiderada.</li>
+        <li>Ao atingir 3 WO consecutivos, o atleta cai para a última posição da categoria.</li>
+        <li>Em caso de clima adverso sem uso de quadras, o prazo de 10 dias pode ser flexibilizado. Em interrupção de partida, vale acordo entre os atletas; sem prazo remanescente, o placar parcial define o vencedor.</li>
+        <li>O desafiado é obrigado a jogar. Se não houver data dentro do prazo, o desafiante assume a posição do desafiado.</li>
+        <li>Novos desafios encerram em 21/10/2026 e partidas válidas podem ocorrer até 31/10/2026.</li>
+      </ol>
+    </section>
+
+    <section class="panel regulamento-panel">
+      <h2>2. Afastamento</h2>
+      <ol class="regulamento-lista">
+        <li>O atleta só pode ficar neutro com comprovação clínica. Sem isso, segue sujeito a desafios normais e pode usar os 10 dias para eventual WO.</li>
+        <li>Quem sair da tabela pode voltar quando quiser, entrando na última posição da classe abaixo da que ocupava.</li>
+        <li>Quem ingressar no ranking durante o ano entra na última posição da classe abaixo da sua ideal.</li>
+      </ol>
+    </section>
+
+    <section class="panel regulamento-panel">
+      <h2>3. Torneio Finals</h2>
+      <ol class="regulamento-lista">
+        <li>Participam os 10 primeiros de cada classe. O formato segue o chaveamento informado pela organização do ranking.</li>
+        <li>Serão premiados campeão e vice de cada classe.</li>
+      </ol>
+      <p class="hint">Todos os atletas ativos devem estar com mensalidade do BTC e taxa do ranking em dia. Em caso de atraso, há prazo de até 10 dias para regularização; depois disso pode haver WO.</p>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

@@ -14,6 +14,31 @@ def salvar_json(path: Path, data: Any) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+def atletas_ativos_do_ranking(atletas: List[Dict[str, Any]], ranking: str | None = None) -> List[Dict[str, Any]]:
+    saida = [
+        atleta for atleta in atletas
+        if atleta.get('ativo') and not atleta.get('retirado')
+    ]
+    if ranking:
+        saida = [atleta for atleta in saida if atleta.get('ranking') == ranking]
+    return saida
+
+
+def normalizar_posicoes_ranking(atletas: List[Dict[str, Any]], ranking: str | None = None) -> None:
+    rankings = sorted({
+        atleta.get('ranking') for atleta in atletas
+        if atleta.get('ranking') and (ranking is None or atleta.get('ranking') == ranking)
+    })
+
+    for ranking_id in rankings:
+        ativos = sorted(
+            atletas_ativos_do_ranking(atletas, ranking_id),
+            key=lambda atleta: int(atleta.get('posicao', 9999) or 9999),
+        )
+        for indice, atleta in enumerate(ativos, start=1):
+            atleta['posicao'] = indice
+
+
 def formatar_status(atleta: Dict[str, Any]) -> Dict[str, str]:
     if atleta.get('retirado'):
         return {'label': 'retirado', 'cor': 'cinza'}

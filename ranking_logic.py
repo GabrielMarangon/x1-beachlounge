@@ -4,10 +4,11 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Tuple
 
 from regras_ranking import aplicar_wo_consecutivo
+from utils import atletas_ativos_do_ranking, normalizar_posicoes_ranking
 
 
 def _categoria_atletas(atletas: List[Dict[str, Any]], ranking: str) -> List[Dict[str, Any]]:
-    return [a for a in atletas if a.get('ranking') == ranking]
+    return atletas_ativos_do_ranking(atletas, ranking)
 
 
 def _ordenar_posicoes(categoria: List[Dict[str, Any]]) -> None:
@@ -77,6 +78,8 @@ def atualizar_ranking_apos_resultado(partida: Dict[str, Any], atletas: List[Dict
         processar_vitoria_desafiado(atletas, desafiante_id, desafiado_id)
         if wo:
             processar_wo(atletas, desafiante_id, ranking)
+
+    normalizar_posicoes_ranking(atletas, ranking)
 
     desafiante['ultimo_jogo'] = now.isoformat(timespec='minutes')
     desafiado['ultimo_jogo'] = now.isoformat(timespec='minutes')

@@ -26,8 +26,6 @@ def verificar_status_financeiro(atleta: Dict[str, Any]) -> Tuple[bool, str]:
 
 
 def verificar_status_atleta(atleta: Dict[str, Any], referencia_dt: datetime | None = None) -> Tuple[bool, str]:
-    now = referencia_dt or datetime.now()
-
     if atleta.get('retirado'):
         return False, 'Atleta retirado do ranking.'
     if not atleta.get('ativo'):
@@ -37,10 +35,6 @@ def verificar_status_atleta(atleta: Dict[str, Any], referencia_dt: datetime | No
     if atleta.get('bloqueio_secretaria'):
         motivo = atleta.get('bloqueio_motivo') or 'bloqueio manual da secretaria'
         return False, f'Atleta bloqueado pela secretaria ({motivo}).'
-
-    bloqueado_ate = _parse_dt(atleta.get('bloqueado_ate'))
-    if bloqueado_ate and bloqueado_ate > now:
-        return False, f"Atleta bloqueado até {bloqueado_ate.strftime('%d/%m/%Y %H:%M')}."
 
     return True, 'Atleta apto.'
 
@@ -61,6 +55,57 @@ def _atleta_em_desafio(partidas: List[Dict[str, Any]] | None, atleta_id: str) ->
         and p.get('status') in {'pendente_agendamento', 'marcada', 'em_andamento'}
         for p in partidas
     )
+
+
+def _partidas_finalizadas(partidas: List[Dict[str, Any]] | None) -> List[Dict[str, Any]]:
+    if not partidas:
+        return []
+    return [
+        partida for partida in partidas
+        if partida.get('status') in {'finalizada', 'realizada'}
+        and partida.get('data_registro_resultado')
+    ]
+
+
+def _bloqueio_repeticao_confronto(
+    partidas: List[Dict[str, Any]] | None,
+    desafiante_id: str | None,
+    desafiado_id: str | None,
+    referencia_dt: datetime,
+) -> Tuple[bool, str]:
+    if not partidas or not desafiante_id or not desafiado_id:
+        return False, 'Sem bloqueio de repetição.'
+
+    historico_dupla = [
+        partida for partida in _partidas_finalizadas(partidas)
+        if {partida.get('desafiante'), partida.get('desafiado')} == {desafiante_id, desafiado_id}
+    ]
+    if not historico_dupla:
+        return False, 'Sem confronto anterior entre os atletas.'
+
+    ultimo_confronto = max(
+        historico_dupla,
+        key=lambda partida: _parse_dt(partida.get('data_registro_resultado')) or datetime.min,
+    )
+    data_ultimo = _parse_dt(ultimo_confronto.get('data_registro_resultado'))
+    if not data_ultimo:
+        return False, 'Sem bloqueio de repetição.'
+
+    if referencia_dt > data_ultimo + timedelta(days=PRAZO_DESAFIO_DIAS):
+        return False, 'Janela de repetição já expirou.'
+
+    houve_outro_jogo = any(
+        partida.get('id') != ultimo_confronto.get('id')
+        and (desafiante_id in {partida.get('desafiante'), partida.get('desafiado')}
+             or desafiado_id in {partida.get('desafiante'), partida.get('desafiado')})
+        and (_parse_dt(partida.get('data_registro_resultado')) or datetime.min) > data_ultimo
+        for partida in _partidas_finalizadas(partidas)
+    )
+    if houve_outro_jogo:
+        return False, 'Atleta já fez outro jogo após o último confronto.'
+
+    limite = (data_ultimo + timedelta(days=PRAZO_DESAFIO_DIAS)).strftime('%d/%m/%Y %H:%M')
+    return True, f'Repetição do mesmo confronto bloqueada até {limite}.'
 
 
 def pode_desafiar(desafiante: Dict[str, Any], desafiado: Dict[str, Any], referencia_dt: datetime | None = None) -> Tuple[bool, str]:
@@ -110,6 +155,15 @@ def pode_desafiar_com_partidas(
     bloqueado, msg_b = verificar_bloqueio_novo_desafio(desafiante, now)
     if bloqueado:
         return False, msg_b
+
+    repeticao_bloqueada, msg_repeticao = _bloqueio_repeticao_confronto(
+        partidas,
+        desafiante.get('id'),
+        desafiado.get('id'),
+        now,
+    )
+    if repeticao_bloqueada:
+        return False, msg_repeticao
 
     if now > DATA_LIMITE_DESAFIO:
         return False, 'Prazo para lançar novos desafios encerrou em 21/10/2026.'
@@ -168,7 +222,11 @@ def listar_desafios_possiveis(
 
     candidatos = [
         a for a in atletas
-        if a.get('ranking') == ranking and int(a.get('posicao', 0) or 0) < posicao and (posicao - int(a.get('posicao', 0) or 0)) <= 3
+        if a.get('ranking') == ranking
+        and a.get('ativo')
+        and not a.get('retirado')
+        and int(a.get('posicao', 0) or 0) < posicao
+        and (posicao - int(a.get('posicao', 0) or 0)) <= 3
     ]
 
     saida: List[Dict[str, Any]] = []

@@ -23,7 +23,7 @@
     </div>
   </header>
   <nav class="nav-links">
-    <a href="/">Início</a><a href="/agenda">Agenda</a><a href="/partidas">Jogos marcados</a><a href="/resultado-atleta">Resultado do atleta</a><a href="/desafio">Desafios</a><a href="/secretaria">Secretaria</a>
+    <a href="/">Início</a><a href="/agenda">Agenda</a><a href="/partidas">Jogos marcados</a><a href="/resultado-atleta">Resultado do atleta</a><a href="/desafio">Desafios</a><a href="/regulamento">Regulamento</a><a href="/secretaria">Secretaria</a>
   </nav>
   <main class="container">
     <section class="panel">
@@ -36,6 +36,17 @@
       </label>
     </section>
     <section class="panel">
+      <div class="panel-actions">
+        <div>
+          <h2>Lista atualizada do ranking</h2>
+          <p class="hint">Copie ou envie o texto pronto para o grupo sempre que houver mudança de posição.</p>
+        </div>
+        <div class="ranking-share-actions">
+          <button id="btnCopiarRanking" type="button" class="btn-secundario">Copiar lista</button>
+          <button id="btnWhatsappRanking" type="button" class="btn-secundario btn-whatsapp">WhatsApp</button>
+        </div>
+      </div>
+      <p id="msgRankingShare" class="msg"></p>
       <table class="table" id="rankingTable">
         <thead><tr><th>Posição</th><th>Nome</th><th>Classe</th><th>Status</th></tr></thead>
         <tbody></tbody>

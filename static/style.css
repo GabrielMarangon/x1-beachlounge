@@ -150,6 +150,7 @@ body {
 .nav-links a[href="/partidas"]::before { content: "🎾 "; }
 .nav-links a[href="/resultado-atleta"]::before { content: "📊 "; }
 .nav-links a[href="/desafio"]::before { content: "🥎 "; }
+.nav-links a[href="/regulamento"]::before { content: "📘 "; }
 .nav-links a[href="/secretaria"]::before { content: "⚙️ "; }
 
 .nav-links a:hover {
@@ -273,6 +274,14 @@ body {
   margin: 0 0 0.62rem;
   color: #173451;
   font-size: 1.08rem;
+}
+
+.panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+  margin-bottom: 0.8rem;
 }
 
 .panel-attention {
@@ -417,6 +426,29 @@ button:hover {
   box-shadow: 0 9px 18px rgba(11, 56, 92, 0.22);
 }
 
+.btn-secundario {
+  width: auto;
+  margin-top: 0;
+  padding: 0.48rem 0.78rem;
+  background: #f6f9fc;
+  color: #214b68;
+  border-color: #c6d9ea;
+  box-shadow: none;
+}
+
+.btn-whatsapp {
+  background: #ebfaf1;
+  color: #14693e;
+  border-color: #97d3ad;
+}
+
+.ranking-share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+
 .msg { font-size: 0.9rem; color: #1f4f73; margin-top: 0.35rem; }
 .hint { color: var(--muted); font-size: 0.86rem; }
 
@@ -492,6 +524,17 @@ button:hover {
   background: linear-gradient(135deg, #d59b45 0%, #b27320 100%);
 }
 
+.desafio-apto,
+.desafio-bloqueado {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-weight: 700;
+}
+
+.desafio-apto { color: #197042; }
+.desafio-bloqueado { color: #a12e2e; }
+
 /* Agenda em grade por horário x quadra */
 .agenda-matrix .cell-slot {
   font-size: 0.85rem;
@@ -543,6 +586,17 @@ button:hover {
   font-size: 0.92rem;
 }
 
+.regulamento-panel {
+  line-height: 1.5;
+}
+
+.regulamento-lista {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
 @media (max-width: 900px) {
   .topbar-grid {
     grid-template-columns: 1fr 1fr;
@@ -572,4 +626,5 @@ button:hover {
   .cards-grid-main { grid-template-columns: 1fr; }
   .panel-grid { grid-template-columns: 1fr; }
   .list-games li { grid-template-columns: 56px 78px 1fr; }
+  .panel-actions { align-items: stretch; flex-direction: column; }
 }
