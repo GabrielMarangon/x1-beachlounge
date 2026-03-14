@@ -21,6 +21,7 @@ from regras_ranking import listar_desafios_possiveis, pode_desafiar_com_partidas
 from utils import (
     atletas_ativos_do_ranking,
     carregar_json,
+    formatar_placar_por_ordem_da_partida,
     formatar_status,
     gerar_id_partida,
     indice_por_id,
@@ -511,7 +512,13 @@ def create_app() -> Flask:
         if vencedor_id not in {partida.get('desafiante'), partida.get('desafiado')}:
             return jsonify({'ok': False, 'mensagem': 'O vencedor informado não pertence a esta partida.'}), 400
 
-        partida['resultado'] = payload.get('placar')
+        try:
+            partida['resultado'] = formatar_placar_por_ordem_da_partida(
+                payload.get('placar', ''),
+                inverter_sets=(vencedor_id == partida.get('desafiado')),
+            )
+        except ValueError as exc:
+            return jsonify({'ok': False, 'mensagem': str(exc)}), 400
         partida['vencedor'] = vencedor_id
         partida['wo'] = bool(payload.get('wo', False))
         partida['observacoes'] = payload.get('observacoes', partida.get('observacoes', ''))

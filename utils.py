@@ -1,4 +1,5 @@
-﻿import json
+import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
@@ -82,3 +83,21 @@ def gerar_id_partida(partidas: List[Dict[str, Any]]) -> str:
             nums.append(int(pid[1:]))
     n = (max(nums) + 1) if nums else 1
     return f"p{n:03d}"
+
+
+def formatar_placar_por_ordem_da_partida(placar: str, inverter_sets: bool = False) -> str:
+    texto = (placar or '').strip()
+    if not texto:
+        return ''
+
+    sets_formatados = []
+    for item in texto.split():
+        partes = re.split(r'[/xX-]', item)
+        if len(partes) != 2 or not all(parte.isdigit() for parte in partes):
+            raise ValueError('Placar inválido. Use o formato 6/4 6/2.')
+        a, b = partes
+        if inverter_sets:
+            a, b = b, a
+        sets_formatados.append(f'{a}/{b}')
+
+    return ' '.join(sets_formatados)
