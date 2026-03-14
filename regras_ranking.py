@@ -53,6 +53,16 @@ def verificar_bloqueio_novo_desafio(atleta: Dict[str, Any], referencia_dt: datet
     return False, 'Sem bloqueio para novo desafio.'
 
 
+def _atleta_em_desafio(partidas: List[Dict[str, Any]] | None, atleta_id: str) -> bool:
+    if not partidas:
+        return False
+    return any(
+        atleta_id in {p.get('desafiante'), p.get('desafiado')}
+        and p.get('status') in {'pendente_agendamento', 'marcada', 'em_andamento'}
+        for p in partidas
+    )
+
+
 def pode_desafiar(desafiante: Dict[str, Any], desafiado: Dict[str, Any], referencia_dt: datetime | None = None) -> Tuple[bool, str]:
     now = referencia_dt or datetime.now()
 
@@ -128,7 +138,12 @@ def aplicar_wo_consecutivo(atleta: Dict[str, Any], atletas_categoria: List[Dict[
     return atleta
 
 
-def listar_desafios_possiveis(atleta: Dict[str, Any], atletas: List[Dict[str, Any]], referencia_dt: datetime | None = None) -> List[Dict[str, Any]]:
+def listar_desafios_possiveis(
+    atleta: Dict[str, Any],
+    atletas: List[Dict[str, Any]],
+    referencia_dt: datetime | None = None,
+    partidas: List[Dict[str, Any]] | None = None,
+) -> List[Dict[str, Any]]:
     now = referencia_dt or datetime.now()
     ranking = atleta.get('ranking')
     posicao = int(atleta.get('posicao', 0) or 0)
@@ -142,8 +157,13 @@ def listar_desafios_possiveis(atleta: Dict[str, Any], atletas: List[Dict[str, An
     ]
 
     saida: List[Dict[str, Any]] = []
+    atleta_em_confronto = _atleta_em_desafio(partidas, atleta.get('id'))
+
     for c in sorted(candidatos, key=lambda x: int(x.get('posicao', 999))):
-        valido, motivo = pode_desafiar(atleta, c, now)
+        if atleta_em_confronto:
+            valido, motivo = False, 'Em desafio: atleta já possui confronto em andamento/agendado.'
+        else:
+            valido, motivo = pode_desafiar(atleta, c, now)
         saida.append({
             'id': c.get('id'),
             'nome': c.get('nome'),

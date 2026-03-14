@@ -222,7 +222,7 @@ def create_app() -> Flask:
             return jsonify({'erro': 'Atleta não encontrado'}), 404
 
         ok, msg = verificar_status_atleta(atleta)
-        desafios = listar_desafios_possiveis(atleta, atletas)
+        desafios = listar_desafios_possiveis(atleta, atletas, partidas=partidas)
         pode_ser_desafiado_por = []
         for cand in atletas:
             if cand['id'] == atleta_id:
@@ -251,11 +251,13 @@ def create_app() -> Flask:
 
     @app.route('/api/desafios/<atleta_id>')
     def api_desafios(atleta_id: str):
-        atletas = _load_all()['atletas']
+        data = _load_all()
+        atletas = data['atletas']
+        partidas = data['partidas']
         atleta = next((a for a in atletas if a['id'] == atleta_id), None)
         if not atleta:
             return jsonify({'erro': 'Atleta não encontrado'}), 404
-        return jsonify(listar_desafios_possiveis(atleta, atletas))
+        return jsonify(listar_desafios_possiveis(atleta, atletas, partidas=partidas))
 
     @app.route('/api/agenda')
     def api_agenda():

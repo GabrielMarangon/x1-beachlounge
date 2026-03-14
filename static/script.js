@@ -455,6 +455,9 @@ async function carregarDesafios() {
   const statusDesafio = (d) => {
     if (d.pode_desafiar) return { cls: 'status-verde', label: 'Pode desafiar' };
     const motivo = (d.motivo || '').toLowerCase();
+    if (motivo.includes('em desafio')) {
+      return { cls: 'status-amarelo', label: 'Em desafio' };
+    }
     if (motivo.includes('prazo') || motivo.includes('aguardar') || motivo.includes('bloqueio')) {
       return { cls: 'status-amarelo', label: 'Atenção' };
     }
