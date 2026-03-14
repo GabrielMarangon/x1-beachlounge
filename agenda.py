@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Tuple
 
-from regras_ranking import pode_desafiar, verificar_prazo_desafio
+from regras_ranking import pode_desafiar_com_partidas, verificar_prazo_desafio
 from utils import gerar_id_partida
 
 
@@ -62,7 +62,7 @@ def agendar_partida(
     if not desafiante or not desafiado:
         return False, 'Desafiante ou desafiado não encontrado.', None
 
-    valido, msg = pode_desafiar(desafiante, desafiado)
+    valido, msg = pode_desafiar_com_partidas(desafiante, desafiado, partidas)
     if not valido:
         return False, msg, None
 

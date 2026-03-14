@@ -64,6 +64,15 @@ def _atleta_em_desafio(partidas: List[Dict[str, Any]] | None, atleta_id: str) ->
 
 
 def pode_desafiar(desafiante: Dict[str, Any], desafiado: Dict[str, Any], referencia_dt: datetime | None = None) -> Tuple[bool, str]:
+    return pode_desafiar_com_partidas(desafiante, desafiado, None, referencia_dt)
+
+
+def pode_desafiar_com_partidas(
+    desafiante: Dict[str, Any],
+    desafiado: Dict[str, Any],
+    partidas: List[Dict[str, Any]] | None = None,
+    referencia_dt: datetime | None = None,
+) -> Tuple[bool, str]:
     now = referencia_dt or datetime.now()
 
     if now > DATA_LIMITE_PARTIDA:
@@ -76,6 +85,12 @@ def pode_desafiar(desafiante: Dict[str, Any], desafiado: Dict[str, Any], referen
     ok, msg = verificar_status_atleta(desafiado, now)
     if not ok:
         return False, f'Desafiado inválido: {msg}'
+
+    if _atleta_em_desafio(partidas, desafiante.get('id')):
+        return False, 'Desafiante em desafio: já possui confronto pendente/agendado/em andamento.'
+
+    if _atleta_em_desafio(partidas, desafiado.get('id')):
+        return False, 'Desafiado em desafio: já possui confronto pendente/agendado/em andamento.'
 
     if desafiante.get('ranking') != desafiado.get('ranking'):
         return False, 'Desafio deve ocorrer no mesmo ranking/categoria.'
@@ -163,7 +178,7 @@ def listar_desafios_possiveis(
         if atleta_em_confronto:
             valido, motivo = False, 'Em desafio: atleta já possui confronto em andamento/agendado.'
         else:
-            valido, motivo = pode_desafiar(atleta, c, now)
+            valido, motivo = pode_desafiar_com_partidas(atleta, c, partidas, now)
         saida.append({
             'id': c.get('id'),
             'nome': c.get('nome'),

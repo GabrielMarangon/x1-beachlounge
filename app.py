@@ -17,7 +17,7 @@ from agenda import (
     verificar_conflito_quadras,
 )
 from ranking_logic import atualizar_ranking_apos_resultado
-from regras_ranking import listar_desafios_possiveis, pode_desafiar, verificar_status_atleta
+from regras_ranking import listar_desafios_possiveis, pode_desafiar_com_partidas, verificar_status_atleta
 from utils import carregar_json, formatar_status, gerar_id_partida, indice_por_id, ordenar_partidas_por_data, salvar_json
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -227,7 +227,7 @@ def create_app() -> Flask:
         for cand in atletas:
             if cand['id'] == atleta_id:
                 continue
-            v, _ = pode_desafiar(cand, atleta)
+            v, _ = pode_desafiar_com_partidas(cand, atleta, partidas)
             if v:
                 pode_ser_desafiado_por.append({'id': cand['id'], 'nome': cand['nome'], 'posicao': cand['posicao']})
 
@@ -359,7 +359,7 @@ def create_app() -> Flask:
         if not desafiante or not desafiado:
             return jsonify({'ok': False, 'mensagem': 'Atletas não encontrados.'}), 404
 
-        valido, motivo = pode_desafiar(desafiante, desafiado)
+        valido, motivo = pode_desafiar_com_partidas(desafiante, desafiado, data['partidas'])
         if not valido:
             return jsonify({'ok': False, 'mensagem': motivo}), 400
 
