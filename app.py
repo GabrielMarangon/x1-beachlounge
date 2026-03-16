@@ -31,12 +31,13 @@ from utils import (
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / 'dados'
+RUNTIME_DATA_DIR = Path(os.getenv('X1_BTC_DATA_DIR') or os.getenv('RENDER_DISK_PATH') or str(DATA_DIR))
 ATLETAS_PATH = DATA_DIR / 'atletas.json'
 QUADRAS_PATH = DATA_DIR / 'quadras.json'
 HORARIOS_PATH = DATA_DIR / 'horarios.json'
 PARTIDAS_PATH = DATA_DIR / 'partidas.json'
-DB_PATH = DATA_DIR / 'x1_btc.db'
-STORE = DataStore(DB_PATH, DATA_DIR)
+DB_PATH = RUNTIME_DATA_DIR / 'x1_btc.db'
+STORE = DataStore(DB_PATH, DATA_DIR, RUNTIME_DATA_DIR)
 
 RANKING_ROTULOS = {
     'masculino_principal': 'Masculino Principal',
