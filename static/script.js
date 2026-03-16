@@ -406,6 +406,23 @@ function atualizarOpcoesVencedorSecretaria(partidasBase = null) {
 }
 
 async function configurarSecretaria() {
+  async function carregarAcessosSecretaria() {
+    const tbody = document.querySelector('#acessosTable tbody');
+    if (!tbody) return;
+    const lista = await api('/api/secretaria/acessos');
+    tbody.innerHTML = lista.map((item) => `
+      <tr>
+        <td>${item.timestamp || '-'}</td>
+        <td>${item.nome || '-'}</td>
+        <td>${item.contato || '-'}</td>
+        <td>${item.tipo_usuario || '-'}</td>
+        <td>${item.evento || '-'}</td>
+        <td>${item.rota || '-'}</td>
+        <td>${item.ip || '-'}</td>
+      </tr>
+    `).join('') || '<tr><td colspan="7">Nenhum acesso registrado até agora.</td></tr>';
+  }
+
   async function carregarPendentesSecretaria() {
     const tbody = document.querySelector('#pendentesSecretariaTable tbody');
     if (!tbody) return;
@@ -462,6 +479,7 @@ async function configurarSecretaria() {
         const hidden = document.getElementById('agendarPartidaPendenteId');
         if (hidden) hidden.value = '';
         await carregarPendentesSecretaria();
+        await carregarAcessosSecretaria();
       } catch (err) {
         setMsg('msgAgendar', err.message, false);
       }
@@ -488,6 +506,7 @@ async function configurarSecretaria() {
         setMsg('msgResultado', out.mensagem, true);
         await carregarAtletasSelects();
         await carregarPendentesSecretaria();
+        await carregarAcessosSecretaria();
       } catch (err) {
         setMsg('msgResultado', err.message, false);
       }
@@ -516,6 +535,7 @@ async function configurarSecretaria() {
         });
         setMsg('msgStatusAtleta', out.mensagem, true);
         await carregarAtletasSelects();
+        await carregarAcessosSecretaria();
       } catch (err) {
         setMsg('msgStatusAtleta', err.message, false);
       }
@@ -523,6 +543,7 @@ async function configurarSecretaria() {
   }
 
   await carregarPendentesSecretaria();
+  await carregarAcessosSecretaria();
 }
 
 async function carregarDesafios() {

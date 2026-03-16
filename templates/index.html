@@ -34,6 +34,14 @@
   </nav>
 
   <main class="container">
+    <section class="panel">
+      <h2>Acesso identificado</h2>
+      <p class="hint">Visitante atual: <strong>{{ visitante.nome or 'não identificado' }}</strong>{% if visitante.contato %} | Contato: {{ visitante.contato }}{% endif %}</p>
+      {% if secretaria_autorizada %}
+        <p class="hint">Sessão da secretaria ativa para: <strong>{{ visitante.nome or 'usuário autorizado' }}</strong></p>
+      {% endif %}
+    </section>
+
     <section class="section-header">
       <h2>Ações principais</h2>
       <p>Painel esportivo para atletas, organização e secretaria</p>

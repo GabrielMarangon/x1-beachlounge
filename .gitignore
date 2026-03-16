@@ -10,3 +10,4 @@ server_stderr.log
 .DS_Store
 Thumbs.db
 dados/x1_btc.db
+dados/access_logs.json

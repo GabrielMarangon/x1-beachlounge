@@ -1,11 +1,13 @@
 ﻿from __future__ import annotations
 
 import os
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from agenda import (
     agendar_partida,
@@ -44,6 +46,10 @@ RANKING_ROTULOS = {
     'feminina_iniciantes': 'Feminina Iniciantes',
     'infantil_a': 'Infantil A',
 }
+SECRETARIA_USERNAME = os.getenv('SECRETARIA_USERNAME', '').strip()
+SECRETARIA_PASSWORD_HASH = os.getenv('SECRETARIA_PASSWORD_HASH', '').strip()
+SECRETARIA_PASSWORD = os.getenv('SECRETARIA_PASSWORD', '').strip()
+ACCESS_LOG_LIMIT = 2000
 
 
 def _load_all() -> Dict[str, Any]:
@@ -63,6 +69,67 @@ def _save_atletas(atletas: List[Dict[str, Any]]) -> None:
 
 def _save_partidas(partidas: List[Dict[str, Any]]) -> None:
     STORE.save_dataset('partidas', partidas)
+
+
+def _load_access_logs() -> List[Dict[str, Any]]:
+    try:
+        logs = STORE.load_dataset('access_logs')
+        return logs if isinstance(logs, list) else []
+    except FileNotFoundError:
+        return []
+
+
+def _save_access_logs(logs: List[Dict[str, Any]]) -> None:
+    STORE.save_dataset('access_logs', list(deque(logs, maxlen=ACCESS_LOG_LIMIT)))
+
+
+def _client_ip() -> str:
+    forwarded = request.headers.get('X-Forwarded-For', '')
+    if forwarded:
+        return forwarded.split(',')[0].strip()
+    return request.remote_addr or 'desconhecido'
+
+
+def _visitor_identity() -> Dict[str, str]:
+    return {
+        'nome': session.get('visitante_nome', '').strip(),
+        'contato': session.get('visitante_contato', '').strip(),
+        'tipo': 'secretaria' if session.get('secretaria_autorizada') else 'visitante',
+    }
+
+
+def _log_access(evento: str) -> None:
+    if request.endpoint == 'health' or request.path.startswith('/static/'):
+        return
+
+    logs = _load_access_logs()
+    visitante = _visitor_identity()
+    logs.append({
+        'timestamp': datetime.now().isoformat(timespec='seconds'),
+        'evento': evento,
+        'rota': request.path,
+        'metodo': request.method,
+        'ip': _client_ip(),
+        'nome': visitante['nome'],
+        'contato': visitante['contato'],
+        'tipo_usuario': visitante['tipo'],
+        'user_agent': request.headers.get('User-Agent', '')[:240],
+    })
+    _save_access_logs(logs)
+
+
+def _secretaria_configurada() -> bool:
+    return bool(SECRETARIA_USERNAME and (SECRETARIA_PASSWORD_HASH or SECRETARIA_PASSWORD))
+
+
+def _validar_login_secretaria(usuario: str, senha: str) -> bool:
+    if not _secretaria_configurada():
+        return False
+    if usuario != SECRETARIA_USERNAME:
+        return False
+    if SECRETARIA_PASSWORD_HASH:
+        return check_password_hash(SECRETARIA_PASSWORD_HASH, senha)
+    return senha == SECRETARIA_PASSWORD
 
 
 def _resumo_home(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -163,11 +230,70 @@ def _estatisticas_atleta(atleta_id: str, partidas: List[Dict[str, Any]]) -> Dict
 
 def create_app() -> Flask:
     app = Flask(__name__)
+    app.secret_key = os.getenv('FLASK_SECRET_KEY') or os.getenv('SECRET_KEY') or 'x1-btc-dev-key'
+
+    @app.before_request
+    def before_request() -> Any:
+        if request.endpoint == 'health' or request.path.startswith('/static/'):
+            return None
+
+        identificacao_livre = {
+            'identificacao_page',
+            'registrar_identificacao',
+            'login_secretaria_page',
+            'login_secretaria',
+            'logout_secretaria',
+            'health',
+        }
+        exige_identificacao = request.endpoint not in identificacao_livre
+        if (
+            request.method == 'GET'
+            and exige_identificacao
+            and not session.get('visitante_nome')
+            and not request.path.startswith('/api/')
+        ):
+            return redirect(url_for('identificacao_page', next=request.full_path or request.path))
+
+        secretaria_protegida = (
+            request.path == '/secretaria'
+            or request.path.startswith('/api/secretaria/')
+        )
+        if secretaria_protegida and not session.get('secretaria_autorizada'):
+            if request.path.startswith('/api/'):
+                return jsonify({'ok': False, 'mensagem': 'Acesso restrito à secretaria.'}), 403
+            return redirect(url_for('login_secretaria_page', next=request.full_path or request.path))
+
+        if request.method == 'GET' and not request.path.startswith('/api/'):
+            _log_access('pagina')
+        return None
 
     @app.route('/')
     def index():
         data = _load_all()
-        return render_template('index.html', resumo=_resumo_home(data), ranking_rotulos=RANKING_ROTULOS)
+        return render_template(
+            'index.html',
+            resumo=_resumo_home(data),
+            ranking_rotulos=RANKING_ROTULOS,
+            visitante=_visitor_identity(),
+            secretaria_autorizada=bool(session.get('secretaria_autorizada')),
+        )
+
+    @app.route('/identificacao')
+    def identificacao_page():
+        return render_template('identificacao.html', next_url=request.args.get('next', '/'))
+
+    @app.route('/identificacao', methods=['POST'])
+    def registrar_identificacao():
+        nome = (request.form.get('nome') or '').strip()
+        contato = (request.form.get('contato') or '').strip()
+        next_url = request.form.get('next_url') or '/'
+        if not nome:
+            return render_template('identificacao.html', erro='Informe seu nome para acessar.', next_url=next_url), 400
+
+        session['visitante_nome'] = nome
+        session['visitante_contato'] = contato
+        _log_access('identificacao')
+        return redirect(next_url if next_url.startswith('/') else '/')
 
     @app.route('/ranking')
     def ranking_page():
@@ -193,9 +319,56 @@ def create_app() -> Flask:
     def resultado_atleta_page():
         return render_template('resultado_atleta.html')
 
+    @app.route('/login-secretaria')
+    def login_secretaria_page():
+        return render_template(
+            'login_secretaria.html',
+            next_url=request.args.get('next', '/secretaria'),
+            configurada=_secretaria_configurada(),
+        )
+
+    @app.route('/login-secretaria', methods=['POST'])
+    def login_secretaria():
+        usuario = (request.form.get('usuario') or '').strip()
+        senha = request.form.get('senha') or ''
+        next_url = request.form.get('next_url') or '/secretaria'
+
+        if not _secretaria_configurada():
+            return render_template(
+                'login_secretaria.html',
+                erro='Credenciais da secretaria ainda não foram configuradas no servidor.',
+                next_url=next_url,
+                configurada=False,
+            ), 400
+
+        if not _validar_login_secretaria(usuario, senha):
+            _log_access('falha_login_secretaria')
+            return render_template(
+                'login_secretaria.html',
+                erro='Usuário ou senha inválidos.',
+                next_url=next_url,
+                configurada=True,
+            ), 401
+
+        session['secretaria_autorizada'] = True
+        session['secretaria_usuario'] = usuario
+        _log_access('login_secretaria')
+        return redirect(next_url if next_url.startswith('/') else '/secretaria')
+
+    @app.route('/logout-secretaria', methods=['POST'])
+    def logout_secretaria():
+        session.pop('secretaria_autorizada', None)
+        session.pop('secretaria_usuario', None)
+        _log_access('logout_secretaria')
+        return redirect('/')
+
     @app.route('/secretaria')
     def secretaria_page():
-        return render_template('secretaria.html', ranking_rotulos=RANKING_ROTULOS)
+        return render_template(
+            'secretaria.html',
+            ranking_rotulos=RANKING_ROTULOS,
+            secretaria_usuario=session.get('secretaria_usuario', ''),
+        )
 
     @app.route('/desafio')
     def desafio_page():
@@ -363,8 +536,14 @@ def create_app() -> Flask:
         pendentes = sorted(pendentes, key=lambda p: p.get('data_desafio', ''), reverse=True)
         return jsonify(pendentes)
 
+    @app.route('/api/secretaria/acessos')
+    def api_secretaria_acessos():
+        logs = sorted(_load_access_logs(), key=lambda item: item.get('timestamp', ''), reverse=True)
+        return jsonify(logs[:200])
+
     @app.route('/api/desafio/registrar', methods=['POST'])
     def api_registrar_desafio_para_secretaria():
+        _log_access('api_secretaria_desafio_registrar')
         data = _load_all()
         payload = request.get_json(silent=True) or {}
         desafiante_id = payload.get('desafiante_id')
@@ -417,6 +596,7 @@ def create_app() -> Flask:
 
     @app.route('/api/secretaria/agendar-pendente', methods=['POST'])
     def api_agendar_pendente_secretaria():
+        _log_access('api_secretaria_agendar_pendente')
         data = _load_all()
         payload = request.get_json(silent=True) or {}
         partida_id = payload.get('partida_id')
@@ -493,6 +673,7 @@ def create_app() -> Flask:
 
     @app.route('/api/registrar-resultado', methods=['POST'])
     def api_registrar_resultado():
+        _log_access('api_registrar_resultado')
         data = _load_all()
         payload = request.get_json(silent=True) or {}
 
@@ -551,6 +732,7 @@ def create_app() -> Flask:
 
     @app.route('/api/apagar-resultado/<partida_id>', methods=['DELETE'])
     def api_apagar_resultado(partida_id: str):
+        _log_access('api_apagar_resultado')
         data = _load_all()
         partida = next((p for p in data['partidas'] if p.get('id') == partida_id), None)
         if not partida:
@@ -595,6 +777,7 @@ def create_app() -> Flask:
 
     @app.route('/api/secretaria/status-atleta', methods=['POST'])
     def api_secretaria_status():
+        _log_access('api_secretaria_status')
         data = _load_all()
         payload = request.get_json(silent=True) or {}
         atleta = next((a for a in data['atletas'] if a.get('id') == payload.get('atleta_id')), None)
