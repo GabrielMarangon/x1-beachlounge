@@ -33,7 +33,19 @@ from utils import (
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / 'dados'
-RUNTIME_DATA_DIR = Path(os.getenv('X1_BTC_DATA_DIR') or os.getenv('RENDER_DISK_PATH') or str(DATA_DIR))
+
+
+def _runtime_data_dir() -> Path:
+    configured = os.getenv('X1_BTC_DATA_DIR') or os.getenv('RENDER_DISK_PATH')
+    if configured:
+        return Path(configured)
+    default_render_disk = Path('/var/data')
+    if os.name != 'nt' and default_render_disk.exists():
+        return default_render_disk
+    return DATA_DIR
+
+
+RUNTIME_DATA_DIR = _runtime_data_dir()
 ATLETAS_PATH = DATA_DIR / 'atletas.json'
 QUADRAS_PATH = DATA_DIR / 'quadras.json'
 HORARIOS_PATH = DATA_DIR / 'horarios.json'
@@ -50,6 +62,16 @@ SECRETARIA_USERNAME = os.getenv('SECRETARIA_USERNAME', '').strip()
 SECRETARIA_PASSWORD_HASH = os.getenv('SECRETARIA_PASSWORD_HASH', '').strip()
 SECRETARIA_PASSWORD = os.getenv('SECRETARIA_PASSWORD', '').strip()
 ACCESS_LOG_LIMIT = 2000
+SEED_PARTIDAS_IDS = {'p001', 'p002', 'p003', 'p004'}
+
+
+def _eh_partida_seed(partida: Dict[str, Any]) -> bool:
+    return (
+        partida.get('id') in SEED_PARTIDAS_IDS
+        and partida.get('status') == 'marcada'
+        and not partida.get('resultado')
+        and not partida.get('data_registro_resultado')
+    )
 
 
 def _load_all() -> Dict[str, Any]:
@@ -59,6 +81,10 @@ def _load_all() -> Dict[str, Any]:
         'horarios': STORE.load_dataset('horarios'),
         'partidas': STORE.load_dataset('partidas'),
     }
+    partidas_sem_seed = [partida for partida in data['partidas'] if not _eh_partida_seed(partida)]
+    if len(partidas_sem_seed) != len(data['partidas']):
+        data['partidas'] = partidas_sem_seed
+        _save_partidas(data['partidas'])
     normalizar_posicoes_ranking(data['atletas'])
     return data
 

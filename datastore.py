@@ -84,6 +84,12 @@ class DataStore:
                 if row:
                     return json.loads(row['payload'])
 
+        mirror_path = self.mirror_dir / f'{name}.json'
+        if mirror_path.exists():
+            data = json.loads(mirror_path.read_text(encoding='utf-8-sig'))
+            self.save_dataset(name, data)
+            return data
+
         bootstrap_path = self.bootstrap_dir / f'{name}.json'
         if not bootstrap_path.exists():
             raise FileNotFoundError(f'Dataset não encontrado: {bootstrap_path}')
