@@ -291,6 +291,19 @@ body {
   margin-top: 0.28rem;
 }
 
+.access-log-panel {
+  opacity: 0.92;
+}
+
+.access-log-panel h2 {
+  font-size: 0.98rem;
+  margin-bottom: 0.45rem;
+}
+
+.access-log-panel .hint {
+  font-size: 0.78rem;
+}
+
 .panel-actions {
   display: flex;
   align-items: center;
@@ -384,6 +397,16 @@ ol.ranked li {
 }
 
 .table tr:last-child td { border-bottom: none; }
+
+.table-compact th,
+.table-compact td {
+  padding: 0.4rem 0.48rem;
+  font-size: 0.8rem;
+}
+
+.table-compact th {
+  font-size: 0.74rem;
+}
 
 .status-chip {
   display: inline-block;
