@@ -16,18 +16,17 @@ from agenda import (
     verificar_conflito_atleta,
     verificar_conflito_quadras,
 )
+from datastore import DataStore
 from ranking_logic import atualizar_ranking_apos_resultado
 from regras_ranking import listar_desafios_possiveis, pode_desafiar_com_partidas, verificar_status_atleta
 from utils import (
     atletas_ativos_do_ranking,
-    carregar_json,
     formatar_placar_por_ordem_da_partida,
     formatar_status,
     gerar_id_partida,
     indice_por_id,
     normalizar_posicoes_ranking,
     ordenar_partidas_por_data,
-    salvar_json,
 )
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -36,6 +35,8 @@ ATLETAS_PATH = DATA_DIR / 'atletas.json'
 QUADRAS_PATH = DATA_DIR / 'quadras.json'
 HORARIOS_PATH = DATA_DIR / 'horarios.json'
 PARTIDAS_PATH = DATA_DIR / 'partidas.json'
+DB_PATH = DATA_DIR / 'x1_btc.db'
+STORE = DataStore(DB_PATH, DATA_DIR)
 
 RANKING_ROTULOS = {
     'masculino_principal': 'Masculino Principal',
@@ -46,21 +47,21 @@ RANKING_ROTULOS = {
 
 def _load_all() -> Dict[str, Any]:
     data = {
-        'atletas': carregar_json(ATLETAS_PATH),
-        'quadras': carregar_json(QUADRAS_PATH),
-        'horarios': carregar_json(HORARIOS_PATH),
-        'partidas': carregar_json(PARTIDAS_PATH),
+        'atletas': STORE.load_dataset('atletas'),
+        'quadras': STORE.load_dataset('quadras'),
+        'horarios': STORE.load_dataset('horarios'),
+        'partidas': STORE.load_dataset('partidas'),
     }
     normalizar_posicoes_ranking(data['atletas'])
     return data
 
 
 def _save_atletas(atletas: List[Dict[str, Any]]) -> None:
-    salvar_json(ATLETAS_PATH, atletas)
+    STORE.save_dataset('atletas', atletas)
 
 
 def _save_partidas(partidas: List[Dict[str, Any]]) -> None:
-    salvar_json(PARTIDAS_PATH, partidas)
+    STORE.save_dataset('partidas', partidas)
 
 
 def _resumo_home(data: Dict[str, Any]) -> Dict[str, Any]:
