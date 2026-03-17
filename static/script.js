@@ -248,6 +248,7 @@ async function carregarPartidas() {
   if (!tbody) return;
   const badge = (status) => {
     if (status === 'marcada') return '<span class="status-chip status-verde">Marcada</span>';
+    if (status === 'pendente_agendamento') return '<span class="status-chip status-amarelo">Pendente de agendamento</span>';
     if (status === 'finalizada') return '<span class="status-chip status-cinza">Finalizada</span>';
     if (status === 'desconsiderada') return '<span class="status-chip status-vermelho">Desconsiderada</span>';
     if (status === 'cancelada') return '<span class="status-chip status-amarelo">Cancelada</span>';
@@ -262,7 +263,7 @@ async function carregarPartidas() {
       <td>${p.categoria_label}</td>
       <td>${badge(p.status)}</td>
       <td>
-        ${(p.status === 'marcada' || p.status === 'em_andamento')
+        ${(p.status === 'pendente_agendamento' || p.status === 'marcada' || p.status === 'em_andamento')
           ? `<button type="button" class="btn-excluir-partida" data-partida-id="${p.id}">Excluir</button>`
           : (p.status === 'cancelada'
             ? `<button type="button" class="btn-desfazer-exclusao" data-partida-id="${p.id}">Desfazer exclusão</button>`
