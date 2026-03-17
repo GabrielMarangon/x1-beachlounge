@@ -64,12 +64,25 @@ SECRETARIA_USERNAME = os.getenv('SECRETARIA_USERNAME', '').strip()
 SECRETARIA_PASSWORD_HASH = os.getenv('SECRETARIA_PASSWORD_HASH', '').strip()
 SECRETARIA_PASSWORD = os.getenv('SECRETARIA_PASSWORD', '').strip()
 ACCESS_LOG_LIMIT = 2000
-SEED_PARTIDAS_IDS = {'p001', 'p002', 'p003', 'p004'}
+SEED_PARTIDAS_ASSINATURAS = {
+    ('p001', 'masculino_principal_gabriel_marangon', 'masculino_principal_oscar', '2026-03-18', '19:00', 'quadra_1'),
+    ('p002', 'infantil_a_pedro_crespo', 'infantil_a_benjamin', '2026-03-19', '18:00', 'quadra_2'),
+    ('p003', 'feminina_iniciantes_micheli', 'feminina_iniciantes_daiane', '2026-03-20', '20:00', 'quadra_3'),
+    ('p004', 'masculino_principal_gabriel_marangon', 'masculino_principal_oscar', '2026-03-17', '18:00', 'quadra_1'),
+}
 
 
 def _eh_partida_seed(partida: Dict[str, Any]) -> bool:
+    assinatura = (
+        partida.get('id'),
+        partida.get('desafiante'),
+        partida.get('desafiado'),
+        partida.get('data'),
+        partida.get('horario'),
+        partida.get('quadra'),
+    )
     return (
-        partida.get('id') in SEED_PARTIDAS_IDS
+        assinatura in SEED_PARTIDAS_ASSINATURAS
         and partida.get('status') == 'marcada'
         and not partida.get('resultado')
         and not partida.get('data_registro_resultado')

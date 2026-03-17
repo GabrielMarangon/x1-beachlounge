@@ -241,7 +241,6 @@ async function carregarPartidas() {
   if (categoria) params.set('categoria', categoria);
   if (quadra) params.set('quadra', quadra);
   if (atleta) params.set('atleta', atleta);
-  params.set('include_canceladas', '1');
 
   const lista = await api(`/api/partidas?${params.toString()}`);
   const tbody = document.querySelector('#partidasTable tbody');
@@ -265,9 +264,7 @@ async function carregarPartidas() {
       <td>
         ${(p.status === 'pendente_agendamento' || p.status === 'marcada' || p.status === 'em_andamento')
           ? `<button type="button" class="btn-excluir-partida" data-partida-id="${p.id}">Excluir</button>`
-          : (p.status === 'cancelada'
-            ? `<button type="button" class="btn-desfazer-exclusao" data-partida-id="${p.id}">Desfazer exclusão</button>`
-            : '-')
+          : '-'
         }
       </td>
     </tr>
@@ -275,9 +272,6 @@ async function carregarPartidas() {
 
   tbody.querySelectorAll('.btn-excluir-partida').forEach((btn) => {
     btn.addEventListener('click', () => excluirPartida(btn.dataset.partidaId));
-  });
-  tbody.querySelectorAll('.btn-desfazer-exclusao').forEach((btn) => {
-    btn.addEventListener('click', () => desfazerExclusaoPartida(btn.dataset.partidaId));
   });
 }
 
