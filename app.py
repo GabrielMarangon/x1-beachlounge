@@ -983,15 +983,34 @@ def create_app() -> Flask:
             return jsonify({'ok': False, 'mensagem': 'A troca manual só pode ocorrer dentro do mesmo ranking.'}), 400
         if atleta_a.get('retirado') or atleta_b.get('retirado') or not atleta_a.get('ativo') or not atleta_b.get('ativo'):
             return jsonify({'ok': False, 'mensagem': 'A troca só pode ocorrer entre atletas ativos do ranking.'}), 400
+        pos_a = int(atleta_a.get('posicao', 0) or 0)
+        pos_b = int(atleta_b.get('posicao', 0) or 0)
+        if pos_a <= 0 or pos_b <= 0:
+            return jsonify({'ok': False, 'mensagem': 'Posições inválidas para a troca manual.'}), 400
+        if pos_a <= pos_b:
+            return jsonify({
+                'ok': False,
+                'mensagem': 'Para este ajuste, o Atleta 1 deve estar abaixo do Atleta 2 na tabela.',
+            }), 400
 
-        atleta_a['posicao'], atleta_b['posicao'] = atleta_b.get('posicao'), atleta_a.get('posicao')
+        ranking = atleta_a.get('ranking')
+        atletas_mesmo_ranking = [
+            atleta for atleta in data['atletas']
+            if atleta.get('ranking') == ranking and atleta.get('ativo') and not atleta.get('retirado')
+        ]
+        for atleta in atletas_mesmo_ranking:
+            posicao = int(atleta.get('posicao', 0) or 0)
+            if pos_b <= posicao < pos_a:
+                atleta['posicao'] = posicao + 1
+        atleta_a['posicao'] = pos_b
+
         normalizar_posicoes_ranking(data['atletas'], atleta_a.get('ranking'))
         _recalcular_classes_ranking(data['atletas'], atleta_a.get('ranking'))
         _save_atletas(data['atletas'])
 
         return jsonify({
             'ok': True,
-            'mensagem': f"Posições trocadas: {atleta_a.get('nome')} x {atleta_b.get('nome')}.",
+            'mensagem': f"{atleta_a.get('nome')} assumiu a posição de {atleta_b.get('nome')}, com ajuste do intervalo.",
             'atletas': [atleta_a, atleta_b],
         })
 
