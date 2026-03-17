@@ -53,6 +53,17 @@ def processar_wo(atletas: List[Dict[str, Any]], perdedor_id: str, ranking: str) 
     _ordenar_posicoes(categoria)
 
 
+def _bloqueio_ate_meio_dia_dia_seguinte(partida: Dict[str, Any], referencia: datetime) -> datetime:
+    data_partida = partida.get('data')
+    if data_partida:
+        try:
+            base = datetime.strptime(data_partida, '%Y-%m-%d')
+            return (base + timedelta(days=1)).replace(hour=12, minute=0, second=0, microsecond=0)
+        except ValueError:
+            pass
+    return (referencia + timedelta(days=1)).replace(hour=12, minute=0, second=0, microsecond=0)
+
+
 def atualizar_ranking_apos_resultado(partida: Dict[str, Any], atletas: List[Dict[str, Any]]) -> Tuple[bool, str]:
     desafiante_id = partida.get('desafiante')
     desafiado_id = partida.get('desafiado')
@@ -85,7 +96,7 @@ def atualizar_ranking_apos_resultado(partida: Dict[str, Any], atletas: List[Dict
     desafiado['ultimo_jogo'] = now.isoformat(timespec='minutes')
 
     # Regra: desafiante aguarda ate meio-dia do dia seguinte para novo desafio.
-    bloqueio = (now + timedelta(days=1)).replace(hour=12, minute=0, second=0, microsecond=0)
+    bloqueio = _bloqueio_ate_meio_dia_dia_seguinte(partida, now)
     desafiante['bloqueado_ate'] = bloqueio.isoformat(timespec='minutes')
     desafiante['ultimo_desafio'] = now.isoformat(timespec='minutes')
     desafiado['ultimo_desafio'] = now.isoformat(timespec='minutes')
