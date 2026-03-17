@@ -25,6 +25,31 @@ class DataStore:
         self.mirror_dir.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
+    def _mirror_path(self, name: str) -> Path:
+        return self.mirror_dir / f'{name}.json'
+
+    def _nonempty_backup_path(self, name: str) -> Path:
+        return self.mirror_dir / f'{name}.last_nonempty.json'
+
+    def _read_json_file(self, path: Path) -> Any:
+        return json.loads(path.read_text(encoding='utf-8-sig'))
+
+    def _restore_nonempty_backup_if_needed(self, name: str, data: Any) -> Any:
+        if name != 'partidas':
+            return data
+        if not isinstance(data, list) or data:
+            return data
+
+        backup_path = self._nonempty_backup_path(name)
+        if not backup_path.exists():
+            return data
+
+        backup_data = self._read_json_file(backup_path)
+        if isinstance(backup_data, list) and backup_data:
+            self.save_dataset(name, backup_data)
+            return backup_data
+        return data
+
     def _sqlite_connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
@@ -77,23 +102,32 @@ class DataStore:
                 cursor.execute('SELECT payload FROM datasets WHERE name = %s', (name,))
                 row = cursor.fetchone()
                 if row:
-                    return json.loads(row[0])
+                    return self._restore_nonempty_backup_if_needed(name, json.loads(row[0]))
         else:
             with self._sqlite_connect() as conn:
                 row = conn.execute('SELECT payload FROM datasets WHERE name = ?', (name,)).fetchone()
                 if row:
-                    return json.loads(row['payload'])
+                    return self._restore_nonempty_backup_if_needed(name, json.loads(row['payload']))
 
-        mirror_path = self.mirror_dir / f'{name}.json'
+        mirror_path = self._mirror_path(name)
         if mirror_path.exists():
-            data = json.loads(mirror_path.read_text(encoding='utf-8-sig'))
+            data = self._read_json_file(mirror_path)
+            data = self._restore_nonempty_backup_if_needed(name, data)
             self.save_dataset(name, data)
             return data
+
+        backup_path = self._nonempty_backup_path(name)
+        if name == 'partidas' and backup_path.exists():
+            data = self._read_json_file(backup_path)
+            if isinstance(data, list) and data:
+                self.save_dataset(name, data)
+                return data
 
         bootstrap_path = self.bootstrap_dir / f'{name}.json'
         if not bootstrap_path.exists():
             raise FileNotFoundError(f'Dataset não encontrado: {bootstrap_path}')
-        data = json.loads(bootstrap_path.read_text(encoding='utf-8-sig'))
+        data = self._read_json_file(bootstrap_path)
+        data = self._restore_nonempty_backup_if_needed(name, data)
         self.save_dataset(name, data)
         return data
 
@@ -128,5 +162,7 @@ class DataStore:
                 )
                 conn.commit()
 
-        mirror_path = self.mirror_dir / f'{name}.json'
+        mirror_path = self._mirror_path(name)
         mirror_path.write_text(payload, encoding='utf-8')
+        if isinstance(data, list) and data:
+            self._nonempty_backup_path(name).write_text(payload, encoding='utf-8')
