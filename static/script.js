@@ -365,7 +365,7 @@ async function carregarAtletasSelects() {
     .map(a => `<option value="${a.id}">${a.nome} (${a.categoria} - #${a.posicao})</option>`)
     .join('');
 
-  ['agendarDesafiante','agendarDesafiado','statusAtletaId','desafioAtleta'].forEach(id => {
+  ['agendarDesafiante','agendarDesafiado','statusAtletaId','desafioAtleta','trocaAtletaA','trocaAtletaB'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = options;
   });
@@ -564,6 +564,30 @@ async function configurarSecretaria() {
         await carregarAcessosSecretaria();
       } catch (err) {
         setMsg('msgNovoAtleta', err.message, false);
+      }
+    });
+  }
+
+  const formTrocarPosicoes = document.getElementById('formTrocarPosicoes');
+  if (formTrocarPosicoes) {
+    formTrocarPosicoes.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const payload = {
+          atleta_a_id: document.getElementById('trocaAtletaA').value,
+          atleta_b_id: document.getElementById('trocaAtletaB').value,
+        };
+        const out = await api('/api/secretaria/trocar-posicoes', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload),
+        });
+        setMsg('msgTrocaPosicoes', out.mensagem, true);
+        await carregarAtletasSelects();
+        await carregarPendentesSecretaria();
+        await carregarAcessosSecretaria();
+      } catch (err) {
+        setMsg('msgTrocaPosicoes', err.message, false);
       }
     });
   }

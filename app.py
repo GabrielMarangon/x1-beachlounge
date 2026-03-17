@@ -966,6 +966,35 @@ def create_app() -> Flask:
         _save_atletas(data['atletas'])
         return jsonify({'ok': True, 'mensagem': 'Status atualizado com sucesso.', 'atleta': atleta})
 
+    @app.route('/api/secretaria/trocar-posicoes', methods=['POST'])
+    def api_secretaria_trocar_posicoes():
+        _log_access('api_secretaria_trocar_posicoes')
+        data = _load_all()
+        payload = request.get_json(silent=True) or {}
+
+        atleta_a = next((a for a in data['atletas'] if a.get('id') == payload.get('atleta_a_id')), None)
+        atleta_b = next((a for a in data['atletas'] if a.get('id') == payload.get('atleta_b_id')), None)
+
+        if not atleta_a or not atleta_b:
+            return jsonify({'ok': False, 'mensagem': 'Selecione dois atletas válidos.'}), 404
+        if atleta_a.get('id') == atleta_b.get('id'):
+            return jsonify({'ok': False, 'mensagem': 'Selecione atletas diferentes para a troca.'}), 400
+        if atleta_a.get('ranking') != atleta_b.get('ranking'):
+            return jsonify({'ok': False, 'mensagem': 'A troca manual só pode ocorrer dentro do mesmo ranking.'}), 400
+        if atleta_a.get('retirado') or atleta_b.get('retirado') or not atleta_a.get('ativo') or not atleta_b.get('ativo'):
+            return jsonify({'ok': False, 'mensagem': 'A troca só pode ocorrer entre atletas ativos do ranking.'}), 400
+
+        atleta_a['posicao'], atleta_b['posicao'] = atleta_b.get('posicao'), atleta_a.get('posicao')
+        normalizar_posicoes_ranking(data['atletas'], atleta_a.get('ranking'))
+        _recalcular_classes_ranking(data['atletas'], atleta_a.get('ranking'))
+        _save_atletas(data['atletas'])
+
+        return jsonify({
+            'ok': True,
+            'mensagem': f"Posições trocadas: {atleta_a.get('nome')} x {atleta_b.get('nome')}.",
+            'atletas': [atleta_a, atleta_b],
+        })
+
     return app
 
 
