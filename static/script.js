@@ -241,6 +241,7 @@ async function carregarPartidas() {
   if (categoria) params.set('categoria', categoria);
   if (quadra) params.set('quadra', quadra);
   if (atleta) params.set('atleta', atleta);
+  params.set('include_canceladas', '1');
 
   const lista = await api(`/api/partidas?${params.toString()}`);
   const tbody = document.querySelector('#partidasTable tbody');
@@ -332,7 +333,10 @@ async function carregarAtleta() {
 
   const podeUl = document.getElementById('podeSerDesafiado');
   if (podeUl) {
-    podeUl.innerHTML = data.pode_ser_desafiado_por.map(d => `<li>${d.posicao} - ${d.nome}</li>`).join('') || '<li>Nenhum atleta apto a desafiar.</li>';
+    podeUl.innerHTML = data.pode_ser_desafiado_por.map((d) => {
+      const st = statusDesafioVisual(d);
+      return `<li><strong>${d.posicao} - ${escapeHtml(d.nome)}</strong> (${escapeHtml(d.classe || '-')}) <span class="${st.cls}">${st.label}</span><br><span class="hint">${escapeHtml(d.motivo)}</span></li>`;
+    }).join('') || '<li>Nenhum atleta nesta faixa de desafio.</li>';
   }
 
   const histTbody = document.querySelector('#historicoTable tbody');
@@ -538,6 +542,33 @@ async function configurarSecretaria() {
         await carregarAcessosSecretaria();
       } catch (err) {
         setMsg('msgStatusAtleta', err.message, false);
+      }
+    });
+  }
+
+  const formNovoAtleta = document.getElementById('formNovoAtleta');
+  if (formNovoAtleta) {
+    formNovoAtleta.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const payload = {
+          nome: document.getElementById('novoAtletaNome').value,
+          ranking: document.getElementById('novoAtletaRanking').value,
+          posicao: Number(document.getElementById('novoAtletaPosicao').value),
+          observacoes: document.getElementById('novoAtletaObs').value,
+        };
+        const out = await api('/api/secretaria/atletas', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload),
+        });
+        setMsg('msgNovoAtleta', out.mensagem, true);
+        formNovoAtleta.reset();
+        await carregarAtletasSelects();
+        await carregarPendentesSecretaria();
+        await carregarAcessosSecretaria();
+      } catch (err) {
+        setMsg('msgNovoAtleta', err.message, false);
       }
     });
   }

@@ -1,6 +1,8 @@
 ﻿from __future__ import annotations
 
 import os
+import re
+import unicodedata
 from collections import deque
 from datetime import datetime
 from pathlib import Path
@@ -156,6 +158,87 @@ def _validar_login_secretaria(usuario: str, senha: str) -> bool:
     if SECRETARIA_PASSWORD_HASH:
         return check_password_hash(SECRETARIA_PASSWORD_HASH, senha)
     return senha == SECRETARIA_PASSWORD
+
+
+def _slugify(texto: str) -> str:
+    base = unicodedata.normalize('NFKD', texto).encode('ascii', 'ignore').decode('ascii')
+    base = re.sub(r'[^a-zA-Z0-9]+', '_', base.lower()).strip('_')
+    return base or 'atleta'
+
+
+def _classe_masculina_por_posicao(posicao: int) -> str:
+    indice = max(1, ((max(1, posicao) - 1) // 10) + 1)
+    return f'{indice}ª Classe'
+
+
+def _classe_por_ranking_posicao(ranking: str, posicao: int) -> str:
+    if ranking == 'masculino_principal':
+        return _classe_masculina_por_posicao(posicao)
+    return RANKING_ROTULOS.get(ranking, ranking)
+
+
+def _inserir_atleta_em_posicao(atletas: List[Dict[str, Any]], atleta_novo: Dict[str, Any]) -> Dict[str, Any]:
+    ranking = atleta_novo['ranking']
+    ativos = sorted(
+        [a for a in atletas if a.get('ranking') == ranking and a.get('ativo') and not a.get('retirado')],
+        key=lambda item: int(item.get('posicao', 9999) or 9999),
+    )
+    ultima_posicao = max([int(a.get('posicao', 0) or 0) for a in ativos], default=0)
+    posicao = int(atleta_novo.get('posicao', ultima_posicao + 1) or ultima_posicao + 1)
+    posicao = max(1, min(posicao, ultima_posicao + 1))
+
+    for atleta in ativos:
+        if int(atleta.get('posicao', 0) or 0) >= posicao:
+            atleta['posicao'] = int(atleta.get('posicao', 0) or 0) + 1
+
+    atleta_novo['posicao'] = posicao
+    atleta_novo['classe'] = _classe_por_ranking_posicao(ranking, posicao)
+    atletas.append(atleta_novo)
+
+    if ranking == 'masculino_principal':
+        ativos_ordenados = sorted(
+            [a for a in atletas if a.get('ranking') == ranking and a.get('ativo') and not a.get('retirado')],
+            key=lambda item: int(item.get('posicao', 9999) or 9999),
+        )
+        for atleta in ativos_ordenados:
+            atleta['classe'] = _classe_por_ranking_posicao(ranking, int(atleta.get('posicao', 0) or 0))
+
+    return atleta_novo
+
+
+def _candidatos_que_podem_desafiar(atleta: Dict[str, Any], atletas: List[Dict[str, Any]], partidas: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    ranking = atleta.get('ranking')
+    posicao = int(atleta.get('posicao', 0) or 0)
+    candidatos = [
+        cand for cand in atletas
+        if cand.get('id') != atleta.get('id')
+        and cand.get('ranking') == ranking
+        and cand.get('ativo')
+        and not cand.get('retirado')
+        and int(cand.get('posicao', 0) or 0) > posicao
+        and (int(cand.get('posicao', 0) or 0) - posicao) <= 3
+    ]
+
+    saida = []
+    for cand in sorted(candidatos, key=lambda item: int(item.get('posicao', 999))):
+        valido, motivo = pode_desafiar_com_partidas(cand, atleta, partidas)
+        saida.append({
+            'id': cand.get('id'),
+            'nome': cand.get('nome'),
+            'posicao': cand.get('posicao'),
+            'classe': cand.get('classe'),
+            'pode_desafiar': valido,
+            'motivo': motivo,
+        })
+    return saida
+
+
+def _recalcular_classes_ranking(atletas: List[Dict[str, Any]], ranking: str) -> None:
+    if ranking != 'masculino_principal':
+        return
+    for atleta in atletas:
+        if atleta.get('ranking') == ranking and atleta.get('ativo') and not atleta.get('retirado'):
+            atleta['classe'] = _classe_por_ranking_posicao(ranking, int(atleta.get('posicao', 0) or 0))
 
 
 def _resumo_home(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -437,15 +520,7 @@ def create_app() -> Flask:
 
         ok, msg = verificar_status_atleta(atleta)
         desafios = listar_desafios_possiveis(atleta, atletas_ativos_do_ranking(atletas, atleta.get('ranking')), partidas=partidas)
-        pode_ser_desafiado_por = []
-        for cand in atletas:
-            if cand['id'] == atleta_id:
-                continue
-            if cand.get('retirado') or not cand.get('ativo'):
-                continue
-            v, _ = pode_desafiar_com_partidas(cand, atleta, partidas)
-            if v:
-                pode_ser_desafiado_por.append({'id': cand['id'], 'nome': cand['nome'], 'posicao': cand['posicao']})
+        pode_ser_desafiado_por = _candidatos_que_podem_desafiar(atleta, atletas, partidas)
 
         hist = listar_partidas_por_atleta(partidas, atleta_id)
         hist = ordenar_partidas_por_data(hist)
@@ -494,6 +569,7 @@ def create_app() -> Flask:
         categoria_f = request.args.get('categoria')
         quadra_f = request.args.get('quadra')
         atleta_f = request.args.get('atleta')
+        include_canceladas = (request.args.get('include_canceladas') or '').lower() in {'1', 'true', 'sim', 'yes'}
 
         if data_f:
             partidas = [p for p in partidas if p.get('data') == data_f]
@@ -506,7 +582,8 @@ def create_app() -> Flask:
             partidas = [p for p in partidas if low in p.get('desafiante_nome', '').lower() or low in p.get('desafiado_nome', '').lower()]
 
         partidas = ordenar_partidas_por_data(partidas)
-        partidas = [p for p in partidas if p.get('status') != 'cancelada']
+        if not include_canceladas:
+            partidas = [p for p in partidas if p.get('status') != 'cancelada']
         return jsonify(partidas)
 
     @app.route('/api/partidas-atleta/<atleta_id>')
@@ -566,6 +643,73 @@ def create_app() -> Flask:
     def api_secretaria_acessos():
         logs = sorted(_load_access_logs(), key=lambda item: item.get('timestamp', ''), reverse=True)
         return jsonify(logs[:200])
+
+    @app.route('/api/secretaria/atletas', methods=['POST'])
+    def api_secretaria_inserir_atleta():
+        _log_access('api_secretaria_inserir_atleta')
+        data = _load_all()
+        payload = request.get_json(silent=True) or {}
+
+        nome = (payload.get('nome') or '').strip()
+        ranking = (payload.get('ranking') or '').strip()
+        if not nome:
+            return jsonify({'ok': False, 'mensagem': 'Informe o nome do atleta.'}), 400
+        if ranking not in RANKING_ROTULOS:
+            return jsonify({'ok': False, 'mensagem': 'Categoria de ranking inválida.'}), 400
+
+        try:
+            posicao = int(payload.get('posicao'))
+        except (TypeError, ValueError):
+            return jsonify({'ok': False, 'mensagem': 'Informe uma posição válida para o ranking.'}), 400
+
+        atletas = data['atletas']
+        nome_normalizado = nome.casefold()
+        existe = next(
+            (
+                atleta for atleta in atletas
+                if (atleta.get('nome') or '').strip().casefold() == nome_normalizado
+                and atleta.get('ranking') == ranking
+                and not atleta.get('retirado')
+            ),
+            None,
+        )
+        if existe:
+            return jsonify({'ok': False, 'mensagem': 'Já existe um atleta ativo com esse nome nesta categoria.'}), 400
+
+        base_id = _slugify(nome)
+        atleta_id = base_id
+        contador = 2
+        ids_existentes = {atleta.get('id') for atleta in atletas}
+        while atleta_id in ids_existentes:
+            atleta_id = f'{base_id}_{contador}'
+            contador += 1
+
+        atleta_novo = {
+            'id': atleta_id,
+            'nome': nome,
+            'ranking': ranking,
+            'categoria': RANKING_ROTULOS.get(ranking, ranking),
+            'posicao': posicao,
+            'classe': _classe_por_ranking_posicao(ranking, posicao),
+            'ativo': True,
+            'retirado': False,
+            'neutro': False,
+            'wo_consecutivos': 0,
+            'status_financeiro': payload.get('status_financeiro') or 'em dia',
+            'bloqueio_secretaria': False,
+            'bloqueio_motivo': '',
+            'ultimo_jogo': None,
+            'ultimo_desafio': None,
+            'bloqueado_ate': None,
+            'observacoes': payload.get('observacoes', ''),
+        }
+
+        _inserir_atleta_em_posicao(atletas, atleta_novo)
+        normalizar_posicoes_ranking(atletas, ranking)
+        _recalcular_classes_ranking(atletas, ranking)
+
+        _save_atletas(atletas)
+        return jsonify({'ok': True, 'mensagem': 'Novo atleta inserido com sucesso.', 'atleta': atleta_novo})
 
     @app.route('/api/desafio/registrar', methods=['POST'])
     def api_registrar_desafio_para_secretaria():
@@ -832,6 +976,7 @@ def create_app() -> Flask:
             atleta['observacoes'] = payload['observacoes']
 
         normalizar_posicoes_ranking(data['atletas'], atleta.get('ranking'))
+        _recalcular_classes_ranking(data['atletas'], atleta.get('ranking'))
         _save_atletas(data['atletas'])
         return jsonify({'ok': True, 'mensagem': 'Status atualizado com sucesso.', 'atleta': atleta})
 
