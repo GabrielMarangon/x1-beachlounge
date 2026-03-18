@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Tuple
 
 from regras_ranking import pode_desafiar_com_partidas, verificar_prazo_desafio
-from utils import gerar_id_partida
+from utils import agora_brasilia, gerar_id_partida
 
 
 def _parse_game_dt(data: str, horario: str) -> datetime:
@@ -69,6 +69,29 @@ def agendar_partida(
     data = payload.get('data')
     horario = payload.get('horario')
     quadra = payload.get('quadra')
+    status = payload.get('status', 'marcada')
+
+    sem_data_definida = status == 'aguardando_data' or not data
+    if sem_data_definida:
+        partida = {
+            'id': gerar_id_partida(partidas),
+            'desafiante': desafiante['id'],
+            'desafiado': desafiado['id'],
+            'data': '',
+            'horario': '',
+            'quadra': '',
+            'categoria': desafiante.get('ranking'),
+            'tipo_confronto': payload.get('tipo_confronto', 'ranking_x1'),
+            'status': 'aguardando_data',
+            'resultado': None,
+            'vencedor': None,
+            'wo': False,
+            'data_registro_resultado': None,
+            'data_desafio': agora_brasilia().isoformat(timespec='minutes'),
+            'observacoes': payload.get('observacoes', ''),
+        }
+        partidas.append(partida)
+        return True, 'Partida registrada sem data definida.', partida
 
     try:
         _parse_game_dt(data, horario)
@@ -96,12 +119,12 @@ def agendar_partida(
         'quadra': quadra,
         'categoria': desafiante.get('ranking'),
         'tipo_confronto': payload.get('tipo_confronto', 'ranking_x1'),
-        'status': payload.get('status', 'marcada'),
+        'status': status,
         'resultado': None,
         'vencedor': None,
         'wo': False,
         'data_registro_resultado': None,
-        'data_desafio': datetime.now().isoformat(timespec='minutes'),
+        'data_desafio': agora_brasilia().isoformat(timespec='minutes'),
         'observacoes': payload.get('observacoes', ''),
     }
 

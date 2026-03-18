@@ -248,6 +248,7 @@ async function carregarPartidas() {
   const badge = (status) => {
     if (status === 'marcada') return '<span class="status-chip status-verde">Marcada</span>';
     if (status === 'pendente_agendamento') return '<span class="status-chip status-amarelo">Pendente de agendamento</span>';
+    if (status === 'aguardando_data') return '<span class="status-chip status-amarelo">Sem data definida</span>';
     if (status === 'finalizada') return '<span class="status-chip status-cinza">Finalizada</span>';
     if (status === 'desconsiderada') return '<span class="status-chip status-vermelho">Desconsiderada</span>';
     if (status === 'cancelada') return '<span class="status-chip status-amarelo">Cancelada</span>';
@@ -262,7 +263,7 @@ async function carregarPartidas() {
       <td>${p.categoria_label}</td>
       <td>${badge(p.status)}</td>
       <td>
-        ${(p.status === 'pendente_agendamento' || p.status === 'marcada' || p.status === 'em_andamento')
+        ${(p.status === 'pendente_agendamento' || p.status === 'aguardando_data' || p.status === 'marcada' || p.status === 'em_andamento')
           ? `<button type="button" class="btn-excluir-partida" data-partida-id="${p.id}">Excluir</button>`
           : '-'
         }
@@ -475,9 +476,17 @@ async function configurarSecretaria() {
         const hidden = document.getElementById('agendarPartidaPendenteId');
         const sDesafiante = document.getElementById('agendarDesafiante');
         const sDesafiado = document.getElementById('agendarDesafiado');
+        const semData = document.getElementById('agendarSemData');
+        const dataCampo = document.getElementById('agendarData');
+        const horarioCampo = document.getElementById('agendarHorario');
+        const quadraCampo = document.getElementById('agendarQuadra');
         if (hidden) hidden.value = partidaId;
         if (sDesafiante) sDesafiante.value = desafiante;
         if (sDesafiado) sDesafiado.value = desafiado;
+        if (semData) semData.checked = false;
+        if (dataCampo) dataCampo.disabled = false;
+        if (horarioCampo) horarioCampo.disabled = false;
+        if (quadraCampo) quadraCampo.disabled = false;
         setMsg('msgPendentesSecretaria', 'Desafio carregado no formulário. Defina data, horário e quadra para confirmar.', true);
         document.getElementById('formAgendar')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       });
@@ -486,18 +495,39 @@ async function configurarSecretaria() {
 
   const formAgendar = document.getElementById('formAgendar');
   if (formAgendar) {
+    const semDataInput = document.getElementById('agendarSemData');
+    const dataInput = document.getElementById('agendarData');
+    const horarioInput = document.getElementById('agendarHorario');
+    const quadraInput = document.getElementById('agendarQuadra');
+    const atualizarCamposAgendamento = () => {
+      const semData = semDataInput?.checked;
+      [dataInput, horarioInput, quadraInput].forEach((campo) => {
+        if (!campo) return;
+        campo.disabled = !!semData;
+      });
+      if (semData) {
+        if (dataInput) dataInput.value = '';
+        if (horarioInput) horarioInput.selectedIndex = 0;
+        if (quadraInput) quadraInput.selectedIndex = 0;
+      }
+    };
+    semDataInput?.addEventListener('change', atualizarCamposAgendamento);
+    atualizarCamposAgendamento();
+
     formAgendar.addEventListener('submit', async (e) => {
       e.preventDefault();
       try {
         const partidaPendenteId = document.getElementById('agendarPartidaPendenteId')?.value || '';
+        const semDataDefinida = !!document.getElementById('agendarSemData')?.checked;
         const payload = {
           desafiante: document.getElementById('agendarDesafiante').value,
           desafiado: document.getElementById('agendarDesafiado').value,
-          data: document.getElementById('agendarData').value,
-          horario: document.getElementById('agendarHorario').value,
-          quadra: document.getElementById('agendarQuadra').value,
+          data: semDataDefinida ? '' : document.getElementById('agendarData').value,
+          horario: semDataDefinida ? '' : document.getElementById('agendarHorario').value,
+          quadra: semDataDefinida ? '' : document.getElementById('agendarQuadra').value,
           tipo_confronto: document.getElementById('agendarTipo').value,
-          status: 'marcada',
+          status: semDataDefinida ? 'aguardando_data' : 'marcada',
+          sem_data_definida: semDataDefinida,
         };
         const endpoint = partidaPendenteId ? '/api/secretaria/agendar-pendente' : '/api/agendar';
         const body = partidaPendenteId ? { ...payload, partida_id: partidaPendenteId } : payload;
@@ -509,6 +539,8 @@ async function configurarSecretaria() {
         setMsg('msgAgendar', out.mensagem, true);
         const hidden = document.getElementById('agendarPartidaPendenteId');
         if (hidden) hidden.value = '';
+        if (semDataInput) semDataInput.checked = false;
+        atualizarCamposAgendamento();
         await carregarPendentesSecretaria();
         await carregarDesconsideradasSecretaria();
         await carregarAcessosSecretaria();

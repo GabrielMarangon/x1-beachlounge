@@ -602,12 +602,18 @@ def create_app() -> Flask:
     def api_agendar():
         data = _load_all()
         payload = request.get_json(silent=True) or {}
+        sem_data_definida = bool(payload.get('sem_data_definida')) or not payload.get('data')
         horarios_validos = {h.get('hora') for h in data['horarios']}
-        if payload.get('horario') not in horarios_validos:
+        if not sem_data_definida and payload.get('horario') not in horarios_validos:
             return jsonify({
                 'ok': False,
                 'mensagem': f"Horário inválido. Use apenas: {', '.join(sorted(horarios_validos))}.",
             }), 400
+        if sem_data_definida:
+            payload['data'] = ''
+            payload['horario'] = ''
+            payload['quadra'] = ''
+            payload['status'] = 'aguardando_data'
         ok, msg, partida = agendar_partida(data['atletas'], data['partidas'], payload)
         if not ok:
             return jsonify({'ok': False, 'mensagem': msg}), 400
@@ -783,8 +789,17 @@ def create_app() -> Flask:
         data_jogo = payload.get('data')
         horario = payload.get('horario')
         quadra = payload.get('quadra')
-        if not data_jogo or not horario or not quadra:
+        sem_data_definida = bool(payload.get('sem_data_definida')) or not data_jogo
+        if not sem_data_definida and (not data_jogo or not horario or not quadra):
             return jsonify({'ok': False, 'mensagem': 'Data, horário e quadra são obrigatórios.'}), 400
+        if sem_data_definida:
+            partida['data'] = ''
+            partida['horario'] = ''
+            partida['quadra'] = ''
+            partida['tipo_confronto'] = payload.get('tipo_confronto', partida.get('tipo_confronto', 'ranking_x1'))
+            partida['status'] = 'aguardando_data'
+            _save_partidas(data['partidas'])
+            return jsonify({'ok': True, 'mensagem': 'Partida salva sem data definida.', 'partida': partida})
 
         horarios_validos = {h.get('hora') for h in data['horarios']}
         if horario not in horarios_validos:
