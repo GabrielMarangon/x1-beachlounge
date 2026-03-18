@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Tuple
 
 from regras_ranking import aplicar_wo_consecutivo
-from utils import atletas_ativos_do_ranking, normalizar_posicoes_ranking
+from utils import agora_brasilia, atletas_ativos_do_ranking, normalizar_posicoes_ranking
 
 
 def _categoria_atletas(atletas: List[Dict[str, Any]], ranking: str) -> List[Dict[str, Any]]:
@@ -79,7 +79,7 @@ def atualizar_ranking_apos_resultado(partida: Dict[str, Any], atletas: List[Dict
     if not desafiante or not desafiado:
         return False, 'Atletas não encontrados para atualização de ranking.'
 
-    now = datetime.now()
+    now = agora_brasilia()
 
     if vencedor_id == desafiante_id:
         processar_vitoria_desafiante(atletas, desafiante_id, desafiado_id)

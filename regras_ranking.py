@@ -3,18 +3,15 @@
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Tuple
 
+from utils import agora_brasilia, parse_iso_brasilia
+
 DATA_LIMITE_DESAFIO = datetime(2026, 10, 21, 23, 59)
 DATA_LIMITE_PARTIDA = datetime(2026, 10, 31, 23, 59)
 PRAZO_DESAFIO_DIAS = 10
 
 
 def _parse_dt(valor: str | None) -> datetime | None:
-    if not valor:
-        return None
-    try:
-        return datetime.fromisoformat(valor)
-    except Exception:
-        return None
+    return parse_iso_brasilia(valor)
 
 
 def verificar_status_financeiro(atleta: Dict[str, Any]) -> Tuple[bool, str]:
@@ -40,7 +37,7 @@ def verificar_status_atleta(atleta: Dict[str, Any], referencia_dt: datetime | No
 
 
 def verificar_bloqueio_novo_desafio(atleta: Dict[str, Any], referencia_dt: datetime | None = None) -> Tuple[bool, str]:
-    now = referencia_dt or datetime.now()
+    now = referencia_dt or agora_brasilia()
     bloqueado_ate = _parse_dt(atleta.get('bloqueado_ate'))
     if bloqueado_ate and bloqueado_ate > now:
         return True, f"Novo desafio bloqueado até {bloqueado_ate.strftime('%d/%m/%Y %H:%M')}"
@@ -118,7 +115,7 @@ def pode_desafiar_com_partidas(
     partidas: List[Dict[str, Any]] | None = None,
     referencia_dt: datetime | None = None,
 ) -> Tuple[bool, str]:
-    now = referencia_dt or datetime.now()
+    now = referencia_dt or agora_brasilia()
 
     if now > DATA_LIMITE_PARTIDA:
         return False, 'Período de desafios encerrado para a temporada.'
@@ -172,7 +169,7 @@ def pode_desafiar_com_partidas(
 
 
 def verificar_prazo_desafio(partida: Dict[str, Any], referencia_dt: datetime | None = None, clima_adverso: bool = False) -> Tuple[bool, str]:
-    now = referencia_dt or datetime.now()
+    now = referencia_dt or agora_brasilia()
 
     dt_desafio = _parse_dt(partida.get('data_desafio'))
     dt_jogo = _parse_dt(f"{partida.get('data')}T{partida.get('horario')}:00") if partida.get('data') and partida.get('horario') else None
@@ -213,7 +210,7 @@ def listar_desafios_possiveis(
     referencia_dt: datetime | None = None,
     partidas: List[Dict[str, Any]] | None = None,
 ) -> List[Dict[str, Any]]:
-    now = referencia_dt or datetime.now()
+    now = referencia_dt or agora_brasilia()
     ranking = atleta.get('ranking')
     posicao = int(atleta.get('posicao', 0) or 0)
 

@@ -3,6 +3,25 @@ import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
+from zoneinfo import ZoneInfo
+
+APP_TZ = ZoneInfo('America/Sao_Paulo')
+
+
+def agora_brasilia() -> datetime:
+    return datetime.now(APP_TZ).replace(tzinfo=None)
+
+
+def parse_iso_brasilia(valor: str | None) -> datetime | None:
+    if not valor:
+        return None
+    try:
+        dt = datetime.fromisoformat(valor)
+    except Exception:
+        return None
+    if dt.tzinfo:
+        return dt.astimezone(APP_TZ).replace(tzinfo=None)
+    return dt
 
 
 def carregar_json(path: Path) -> Any:
@@ -51,7 +70,7 @@ def formatar_status(atleta: Dict[str, Any]) -> Dict[str, str]:
         return {'label': 'bloqueado pela secretaria', 'cor': 'vermelho'}
     if atleta.get('bloqueado_ate'):
         try:
-            if datetime.fromisoformat(atleta['bloqueado_ate']) > datetime.now():
+            if parse_iso_brasilia(atleta['bloqueado_ate']) > agora_brasilia():
                 return {'label': 'bloqueado temporariamente', 'cor': 'vermelho'}
         except Exception:
             pass

@@ -405,6 +405,38 @@ function atualizarOpcoesVencedorSecretaria(partidasBase = null) {
 }
 
 async function configurarSecretaria() {
+  async function carregarDesconsideradasSecretaria() {
+    const tbody = document.querySelector('#desconsideradasTable tbody');
+    if (!tbody) return;
+    const lista = await api('/api/secretaria/partidas-desconsideradas');
+    tbody.innerHTML = lista.map((p) => `
+      <tr>
+        <td>${p.data || '-'}</td>
+        <td>${p.horario || '-'}</td>
+        <td><strong>${p.desafiante_nome}</strong> x <strong>${p.desafiado_nome}</strong></td>
+        <td>${p.categoria_label || p.categoria || '-'}</td>
+        <td>${p.status || '-'}</td>
+        <td><button type="button" class="btn-reativar-desconsiderada" data-partida-id="${p.id}">Reativar</button></td>
+      </tr>
+    `).join('') || '<tr><td colspan="6">Sem partidas desconsideradas.</td></tr>';
+
+    tbody.querySelectorAll('.btn-reativar-desconsiderada').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          const out = await api(`/api/secretaria/partidas/${btn.dataset.partidaId}/reativar-desconsiderada`, {
+            method: 'POST',
+          });
+          setMsg('msgDesconsideradas', out.mensagem, true);
+          await carregarAtletasSelects();
+          await carregarDesconsideradasSecretaria();
+          await carregarAcessosSecretaria();
+        } catch (err) {
+          setMsg('msgDesconsideradas', err.message, false);
+        }
+      });
+    });
+  }
+
   async function carregarAcessosSecretaria() {
     const tbody = document.querySelector('#acessosTable tbody');
     if (!tbody) return;
@@ -478,6 +510,7 @@ async function configurarSecretaria() {
         const hidden = document.getElementById('agendarPartidaPendenteId');
         if (hidden) hidden.value = '';
         await carregarPendentesSecretaria();
+        await carregarDesconsideradasSecretaria();
         await carregarAcessosSecretaria();
       } catch (err) {
         setMsg('msgAgendar', err.message, false);
@@ -505,6 +538,7 @@ async function configurarSecretaria() {
         setMsg('msgResultado', out.mensagem, true);
         await carregarAtletasSelects();
         await carregarPendentesSecretaria();
+        await carregarDesconsideradasSecretaria();
         await carregarAcessosSecretaria();
       } catch (err) {
         setMsg('msgResultado', err.message, false);
@@ -561,6 +595,7 @@ async function configurarSecretaria() {
         formNovoAtleta.reset();
         await carregarAtletasSelects();
         await carregarPendentesSecretaria();
+        await carregarDesconsideradasSecretaria();
         await carregarAcessosSecretaria();
       } catch (err) {
         setMsg('msgNovoAtleta', err.message, false);
@@ -585,6 +620,7 @@ async function configurarSecretaria() {
         setMsg('msgTrocaPosicoes', out.mensagem, true);
         await carregarAtletasSelects();
         await carregarPendentesSecretaria();
+        await carregarDesconsideradasSecretaria();
         await carregarAcessosSecretaria();
       } catch (err) {
         setMsg('msgTrocaPosicoes', err.message, false);
@@ -593,6 +629,7 @@ async function configurarSecretaria() {
   }
 
   await carregarPendentesSecretaria();
+  await carregarDesconsideradasSecretaria();
   await carregarAcessosSecretaria();
 }
 

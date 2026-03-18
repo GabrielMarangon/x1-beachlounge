@@ -24,6 +24,7 @@ from datastore import DataStore
 from ranking_logic import atualizar_ranking_apos_resultado
 from regras_ranking import listar_desafios_possiveis, pode_desafiar_com_partidas, verificar_status_atleta
 from utils import (
+    agora_brasilia,
     atletas_ativos_do_ranking,
     formatar_placar_por_ordem_da_partida,
     formatar_status,
@@ -119,7 +120,7 @@ def _log_access(evento: str) -> None:
     logs = _load_access_logs()
     visitante = _visitor_identity()
     logs.append({
-        'timestamp': datetime.now().isoformat(timespec='seconds'),
+        'timestamp': agora_brasilia().isoformat(timespec='seconds'),
         'evento': evento,
         'rota': request.path,
         'metodo': request.method,
@@ -231,7 +232,8 @@ def _resumo_home(data: Dict[str, Any]) -> Dict[str, Any]:
     partidas = data['partidas']
     atletas = data['atletas']
     quadras = data['quadras']
-    hoje = datetime.now().strftime('%Y-%m-%d')
+    agora = agora_brasilia()
+    hoje = agora.strftime('%Y-%m-%d')
 
     atletas_map = indice_por_id(atletas)
     quadras_map = indice_por_id(quadras)
@@ -240,7 +242,7 @@ def _resumo_home(data: Dict[str, Any]) -> Dict[str, Any]:
     jogos_hoje = [_enriquecer_partida(p, atletas_map, quadras_map) for p in jogos_hoje_base]
     jogos_hoje = sorted(jogos_hoje, key=lambda x: x.get('horario', '99:99'))
 
-    pendentes_resultado = [p for p in partidas if p.get('status') == 'marcada' and datetime.strptime(p['data'], '%Y-%m-%d') < datetime.now()]
+    pendentes_resultado = [p for p in partidas if p.get('status') == 'marcada' and datetime.strptime(p['data'], '%Y-%m-%d') < agora]
     pendentes_resultado = [_enriquecer_partida(p, atletas_map, quadras_map) for p in pendentes_resultado]
     pendentes_resultado = ordenar_partidas_por_data(pendentes_resultado)
 
@@ -540,7 +542,7 @@ def create_app() -> Flask:
     @app.route('/api/agenda')
     def api_agenda():
         data = _load_all()
-        data_ref = request.args.get('data') or datetime.now().strftime('%Y-%m-%d')
+        data_ref = request.args.get('data') or agora_brasilia().strftime('%Y-%m-%d')
         slots = listar_horarios_disponiveis(data['partidas'], data['quadras'], data['horarios'], data_ref)
         return jsonify(slots)
 
@@ -624,6 +626,19 @@ def create_app() -> Flask:
         ]
         pendentes = sorted(pendentes, key=lambda p: p.get('data_desafio', ''), reverse=True)
         return jsonify(pendentes)
+
+    @app.route('/api/secretaria/partidas-desconsideradas')
+    def api_partidas_desconsideradas_secretaria():
+        data = _load_all()
+        atletas_map = indice_por_id(data['atletas'])
+        quadras_map = indice_por_id(data['quadras'])
+        partidas = [
+            _enriquecer_partida(p, atletas_map, quadras_map)
+            for p in data['partidas']
+            if p.get('status') == 'desconsiderada'
+        ]
+        partidas = ordenar_partidas_por_data(partidas)
+        return jsonify(partidas)
 
     @app.route('/api/secretaria/acessos')
     def api_secretaria_acessos():
@@ -743,7 +758,7 @@ def create_app() -> Flask:
             'vencedor': None,
             'wo': False,
             'data_registro_resultado': None,
-            'data_desafio': datetime.now().isoformat(timespec='minutes'),
+            'data_desafio': agora_brasilia().isoformat(timespec='minutes'),
             'observacoes': payload.get('observacoes', ''),
         }
         data['partidas'].append(partida)
@@ -808,7 +823,7 @@ def create_app() -> Flask:
             return jsonify({'ok': False, 'mensagem': 'Partida já está cancelada.'}), 400
         partida['status_anterior'] = partida.get('status', 'marcada')
         partida['status'] = 'cancelada'
-        partida['cancelada_em'] = datetime.now().isoformat(timespec='minutes')
+        partida['cancelada_em'] = agora_brasilia().isoformat(timespec='minutes')
         _save_partidas(partidas)
         return jsonify({'ok': True, 'mensagem': 'Partida cancelada. Você pode desfazer.', 'partida': partida})
 
@@ -842,7 +857,7 @@ def create_app() -> Flask:
 
         # Resultado deve ser lançado até 23:59 do dia da partida.
         limite = datetime.strptime(f"{partida['data']} 23:59", '%Y-%m-%d %H:%M')
-        if datetime.now() > limite:
+        if agora_brasilia() > limite:
             partida['status'] = 'desconsiderada'
             _save_partidas(data['partidas'])
             return jsonify({'ok': False, 'mensagem': 'Prazo expirado. Partida desconsiderada por regulamento.'}), 400
@@ -923,13 +938,36 @@ def create_app() -> Flask:
         partida['vencedor'] = None
         partida['wo'] = False
         partida['data_registro_resultado'] = None
-        partida['resultado_apagado_em'] = datetime.now().isoformat(timespec='minutes')
+        partida['resultado_apagado_em'] = agora_brasilia().isoformat(timespec='minutes')
         partida.pop('snapshot_pre_resultado', None)
         partida.pop('status_antes_resultado', None)
 
         _save_atletas(data['atletas'])
         _save_partidas(data['partidas'])
         return jsonify({'ok': True, 'mensagem': 'Resultado apagado e ranking revertido com sucesso.', 'partida': partida})
+
+    @app.route('/api/secretaria/partidas/<partida_id>/reativar-desconsiderada', methods=['POST'])
+    def api_secretaria_reativar_desconsiderada(partida_id: str):
+        _log_access('api_secretaria_reativar_desconsiderada')
+        data = _load_all()
+        partida = next((p for p in data['partidas'] if p.get('id') == partida_id), None)
+        if not partida:
+            return jsonify({'ok': False, 'mensagem': 'Partida não encontrada.'}), 404
+        if partida.get('status') != 'desconsiderada':
+            return jsonify({'ok': False, 'mensagem': 'Apenas partidas desconsideradas podem ser reativadas.'}), 400
+
+        partida['status'] = partida.get('status_antes_resultado', 'marcada')
+        partida['resultado'] = None
+        partida['vencedor'] = None
+        partida['wo'] = False
+        partida['data_registro_resultado'] = None
+        partida['observacoes'] = partida.get('observacoes', '')
+        partida['reativada_em'] = agora_brasilia().isoformat(timespec='minutes')
+        partida.pop('status_antes_resultado', None)
+        partida.pop('snapshot_pre_resultado', None)
+
+        _save_partidas(data['partidas'])
+        return jsonify({'ok': True, 'mensagem': 'Partida reativada para novo lançamento de resultado.', 'partida': partida})
 
     @app.route('/api/secretaria/status-atleta', methods=['POST'])
     def api_secretaria_status():
