@@ -22,7 +22,12 @@ from agenda import (
 )
 from datastore import DataStore
 from ranking_logic import atualizar_ranking_apos_resultado
-from regras_ranking import listar_desafios_possiveis, pode_desafiar_com_partidas, verificar_status_atleta
+from regras_ranking import (
+    listar_desafiantes_abaixo,
+    listar_desafios_possiveis,
+    pode_desafiar_com_partidas,
+    verificar_status_atleta,
+)
 from utils import (
     agora_brasilia,
     atletas_ativos_do_ranking,
@@ -194,21 +199,11 @@ def _inserir_atleta_em_posicao(atletas: List[Dict[str, Any]], atleta_novo: Dict[
 
 
 def _candidatos_que_podem_desafiar(atleta: Dict[str, Any], atletas: List[Dict[str, Any]], partidas: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    ranking = atleta.get('ranking')
-    posicao = int(atleta.get('posicao', 0) or 0)
-    candidatos = [
-        cand for cand in atletas
-        if cand.get('id') != atleta.get('id')
-        and cand.get('ranking') == ranking
-        and cand.get('ativo')
-        and not cand.get('retirado')
-        and int(cand.get('posicao', 0) or 0) > posicao
-        and (int(cand.get('posicao', 0) or 0) - posicao) <= 3
-    ]
+    candidatos = listar_desafiantes_abaixo(atleta, atletas, limite_ativos=3)
 
     saida = []
     for cand in sorted(candidatos, key=lambda item: int(item.get('posicao', 999))):
-        valido, motivo = pode_desafiar_com_partidas(cand, atleta, partidas)
+        valido, motivo = pode_desafiar_com_partidas(cand, atleta, partidas, atletas=atletas)
         saida.append({
             'id': cand.get('id'),
             'nome': cand.get('nome'),
@@ -734,7 +729,7 @@ def create_app() -> Flask:
         if not desafiante or not desafiado:
             return jsonify({'ok': False, 'mensagem': 'Atletas não encontrados.'}), 404
 
-        valido, motivo = pode_desafiar_com_partidas(desafiante, desafiado, data['partidas'])
+        valido, motivo = pode_desafiar_com_partidas(desafiante, desafiado, data['partidas'], atletas=data['atletas'])
         if not valido:
             return jsonify({'ok': False, 'mensagem': motivo}), 400
 

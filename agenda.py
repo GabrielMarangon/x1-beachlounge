@@ -62,7 +62,7 @@ def agendar_partida(
     if not desafiante or not desafiado:
         return False, 'Desafiante ou desafiado não encontrado.', None
 
-    valido, msg = pode_desafiar_com_partidas(desafiante, desafiado, partidas)
+    valido, msg = pode_desafiar_com_partidas(desafiante, desafiado, partidas, atletas=atletas)
     if not valido:
         return False, msg, None
 

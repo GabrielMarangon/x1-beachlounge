@@ -64,6 +64,86 @@ def _partidas_finalizadas(partidas: List[Dict[str, Any]] | None) -> List[Dict[st
     ]
 
 
+def _atletas_mesmo_ranking(atletas: List[Dict[str, Any]] | None, ranking: str | None) -> List[Dict[str, Any]]:
+    if not atletas or not ranking:
+        return []
+    return [
+        atleta for atleta in atletas
+        if atleta.get('ranking') == ranking and atleta.get('ativo') and not atleta.get('retirado')
+    ]
+
+
+def _elegivel_para_contagem_desafio(atleta: Dict[str, Any]) -> bool:
+    return atleta.get('ativo') and not atleta.get('retirado') and not atleta.get('neutro')
+
+
+def listar_alvos_acima(atleta: Dict[str, Any], atletas: List[Dict[str, Any]], limite_ativos: int = 3) -> List[Dict[str, Any]]:
+    ranking = atleta.get('ranking')
+    posicao = int(atleta.get('posicao', 0) or 0)
+    candidatos = sorted(
+        [
+            cand for cand in _atletas_mesmo_ranking(atletas, ranking)
+            if cand.get('id') != atleta.get('id') and int(cand.get('posicao', 0) or 0) < posicao
+        ],
+        key=lambda cand: int(cand.get('posicao', 9999) or 9999),
+        reverse=True,
+    )
+
+    saida: List[Dict[str, Any]] = []
+    ativos_contados = 0
+    for cand in candidatos:
+        saida.append(cand)
+        if _elegivel_para_contagem_desafio(cand):
+            ativos_contados += 1
+        if ativos_contados >= limite_ativos:
+            break
+
+    return sorted(saida, key=lambda cand: int(cand.get('posicao', 9999) or 9999))
+
+
+def listar_desafiantes_abaixo(atleta: Dict[str, Any], atletas: List[Dict[str, Any]], limite_ativos: int = 3) -> List[Dict[str, Any]]:
+    ranking = atleta.get('ranking')
+    posicao = int(atleta.get('posicao', 0) or 0)
+    candidatos = sorted(
+        [
+            cand for cand in _atletas_mesmo_ranking(atletas, ranking)
+            if cand.get('id') != atleta.get('id') and int(cand.get('posicao', 0) or 0) > posicao
+        ],
+        key=lambda cand: int(cand.get('posicao', 9999) or 9999),
+    )
+
+    saida: List[Dict[str, Any]] = []
+    ativos_contados = 0
+    for cand in candidatos:
+        saida.append(cand)
+        if _elegivel_para_contagem_desafio(cand):
+            ativos_contados += 1
+        if ativos_contados >= limite_ativos:
+            break
+
+    return saida
+
+
+def _ordem_desafio(desafiante: Dict[str, Any], desafiado: Dict[str, Any], atletas: List[Dict[str, Any]] | None) -> int | None:
+    ranking = desafiante.get('ranking')
+    posicao = int(desafiante.get('posicao', 0) or 0)
+    candidatos = sorted(
+        [
+            cand for cand in _atletas_mesmo_ranking(atletas, ranking)
+            if cand.get('id') != desafiante.get('id') and int(cand.get('posicao', 0) or 0) < posicao
+        ],
+        key=lambda cand: int(cand.get('posicao', 9999) or 9999),
+        reverse=True,
+    )
+    ordem = 0
+    for cand in candidatos:
+        if _elegivel_para_contagem_desafio(cand):
+            ordem += 1
+        if cand.get('id') == desafiado.get('id'):
+            return ordem if _elegivel_para_contagem_desafio(cand) else None
+    return None
+
+
 def _bloqueio_repeticao_confronto(
     partidas: List[Dict[str, Any]] | None,
     desafiante_id: str | None,
@@ -114,6 +194,7 @@ def pode_desafiar_com_partidas(
     desafiado: Dict[str, Any],
     partidas: List[Dict[str, Any]] | None = None,
     referencia_dt: datetime | None = None,
+    atletas: List[Dict[str, Any]] | None = None,
 ) -> Tuple[bool, str]:
     now = referencia_dt or agora_brasilia()
 
@@ -146,7 +227,11 @@ def pode_desafiar_com_partidas(
     if pos_r >= pos_d:
         return False, 'Desafiante só pode desafiar atletas acima na tabela.'
 
-    if (pos_d - pos_r) > 3:
+    ordem_desafio = _ordem_desafio(desafiante, desafiado, atletas)
+    if ordem_desafio is not None:
+        if ordem_desafio > 3:
+            return False, 'Desafiante só pode desafiar até 3 posições acima.'
+    elif (pos_d - pos_r) > 3:
         return False, 'Desafiante só pode desafiar até 3 posições acima.'
 
     bloqueado, msg_b = verificar_bloqueio_novo_desafio(desafiante, now)
@@ -217,23 +302,16 @@ def listar_desafios_possiveis(
     if posicao <= 1:
         return []
 
-    candidatos = [
-        a for a in atletas
-        if a.get('ranking') == ranking
-        and a.get('ativo')
-        and not a.get('retirado')
-        and int(a.get('posicao', 0) or 0) < posicao
-        and (posicao - int(a.get('posicao', 0) or 0)) <= 3
-    ]
+    candidatos = listar_alvos_acima(atleta, atletas, limite_ativos=3)
 
     saida: List[Dict[str, Any]] = []
     atleta_em_confronto = _atleta_em_desafio(partidas, atleta.get('id'))
 
-    for c in sorted(candidatos, key=lambda x: int(x.get('posicao', 999))):
+    for c in candidatos:
         if atleta_em_confronto:
             valido, motivo = False, 'Em desafio: atleta já possui confronto em andamento/agendado.'
         else:
-            valido, motivo = pode_desafiar_com_partidas(atleta, c, partidas, now)
+            valido, motivo = pode_desafiar_com_partidas(atleta, c, partidas, now, atletas)
         saida.append({
             'id': c.get('id'),
             'nome': c.get('nome'),
