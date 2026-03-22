@@ -355,8 +355,15 @@ def create_app() -> Flask:
                 return jsonify({'ok': False, 'mensagem': 'Acesso restrito à secretaria.'}), 403
             return redirect(url_for('login_secretaria_page', next=request.full_path or request.path))
 
-        if request.method == 'GET' and not request.path.startswith('/api/'):
-            _log_access('pagina')
+        # Evita gravação síncrona de log a cada abertura de página pública.
+        # Esse I/O em toda navegação deixa o app sensivelmente mais lento no Render.
+        # Mantemos os logs explícitos de ações críticas (login, secretaria e APIs administrativas).
+        if (
+            request.method == 'GET'
+            and not request.path.startswith('/api/')
+            and request.path.startswith('/secretaria')
+        ):
+            _log_access('pagina_secretaria')
         return None
 
     @app.route('/')
