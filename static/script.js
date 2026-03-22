@@ -358,7 +358,7 @@ async function carregarAtleta() {
   }
 }
 
-async function carregarAtletasSelects() {
+async function carregarAtletasSelects({ carregarPartidas = true } = {}) {
   const atletas = await api('/api/atletas');
   atletasCache = atletas;
 
@@ -373,16 +373,19 @@ async function carregarAtletasSelects() {
     if (el) el.innerHTML = options;
   });
 
-  const partidas = await api('/api/partidas');
   const partidaSel = document.getElementById('resultadoPartida');
-  if (partidaSel) {
+  const deveCarregarPartidas = carregarPartidas && !!partidaSel;
+  const partidas = deveCarregarPartidas ? await api('/api/partidas') : null;
+  if (partidaSel && partidas) {
     partidaSel.innerHTML = partidas
       .filter(p => p.status === 'marcada')
       .map(p => `<option value="${p.id}">${p.id} - ${p.data} ${p.horario} - ${p.desafiante_nome} x ${p.desafiado_nome}</option>`)
       .join('');
   }
 
-  atualizarOpcoesVencedorSecretaria(partidas);
+  if (partidas) {
+    atualizarOpcoesVencedorSecretaria(partidas);
+  }
   preencherEdicaoAtleta();
 }
 
@@ -418,6 +421,17 @@ function atualizarOpcoesVencedorSecretaria(partidasBase = null) {
 }
 
 async function configurarSecretaria() {
+  async function atualizarPainelSecretaria({ recarregarAtletas = false } = {}) {
+    const tarefas = [];
+    if (recarregarAtletas) tarefas.push(carregarAtletasSelects());
+    tarefas.push(
+      carregarPendentesSecretaria(),
+      carregarDesconsideradasSecretaria(),
+      carregarAcessosSecretaria(),
+    );
+    await Promise.all(tarefas);
+  }
+
   async function carregarDesconsideradasSecretaria() {
     const tbody = document.querySelector('#desconsideradasTable tbody');
     if (!tbody) return;
@@ -440,9 +454,7 @@ async function configurarSecretaria() {
             method: 'POST',
           });
           setMsg('msgDesconsideradas', out.mensagem, true);
-          await carregarAtletasSelects();
-          await carregarDesconsideradasSecretaria();
-          await carregarAcessosSecretaria();
+          await atualizarPainelSecretaria({ recarregarAtletas: true });
         } catch (err) {
           setMsg('msgDesconsideradas', err.message, false);
         }
@@ -474,9 +486,9 @@ async function configurarSecretaria() {
     tbody.innerHTML = lista.map((p) => `
       <tr>
         <td><strong>${p.desafiante_nome}</strong> x <strong>${p.desafiado_nome}</strong></td>
-        <td>${p.categoria_label || p.categoria || '-'}</td>
+        <td>${p.categoria_label || p.categoria || '-'}${p.status === 'aguardando_data' ? ' • Sem data definida' : ''}</td>
         <td>${(p.data_desafio || '').replace('T', ' ') || '-'}</td>
-        <td><button type="button" class="btn-agendar-pendente" data-partida-id="${p.id}" data-desafiante="${p.desafiante}" data-desafiado="${p.desafiado}">Agendar este jogo</button></td>
+        <td><button type="button" class="btn-agendar-pendente" data-partida-id="${p.id}" data-desafiante="${p.desafiante}" data-desafiado="${p.desafiado}" data-status="${p.status || ''}">${p.status === 'aguardando_data' ? 'Definir data deste jogo' : 'Agendar este jogo'}</button></td>
       </tr>
     `).join('') || '<tr><td colspan="4">Sem desafios pendentes.</td></tr>';
 
@@ -499,7 +511,14 @@ async function configurarSecretaria() {
         if (dataCampo) dataCampo.disabled = false;
         if (horarioCampo) horarioCampo.disabled = false;
         if (quadraCampo) quadraCampo.disabled = false;
-        setMsg('msgPendentesSecretaria', 'Desafio carregado no formulário. Defina data, horário e quadra para confirmar.', true);
+        const statusAtual = btn.dataset.status;
+        setMsg(
+          'msgPendentesSecretaria',
+          statusAtual === 'aguardando_data'
+            ? 'Jogo sem data carregado no formulário. Defina data, horário e quadra para concluir o agendamento.'
+            : 'Desafio carregado no formulário. Defina data, horário e quadra para confirmar.',
+          true,
+        );
         document.getElementById('formAgendar')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       });
     });
@@ -553,9 +572,7 @@ async function configurarSecretaria() {
         if (hidden) hidden.value = '';
         if (semDataInput) semDataInput.checked = false;
         atualizarCamposAgendamento();
-        await carregarPendentesSecretaria();
-        await carregarDesconsideradasSecretaria();
-        await carregarAcessosSecretaria();
+        await atualizarPainelSecretaria({ recarregarAtletas: !partidaPendenteId });
       } catch (err) {
         setMsg('msgAgendar', err.message, false);
       }
@@ -580,10 +597,7 @@ async function configurarSecretaria() {
           body: JSON.stringify(payload),
         });
         setMsg('msgResultado', out.mensagem, true);
-        await carregarAtletasSelects();
-        await carregarPendentesSecretaria();
-        await carregarDesconsideradasSecretaria();
-        await carregarAcessosSecretaria();
+        await atualizarPainelSecretaria({ recarregarAtletas: true });
       } catch (err) {
         setMsg('msgResultado', err.message, false);
       }
@@ -611,8 +625,7 @@ async function configurarSecretaria() {
           body: JSON.stringify(payload),
         });
         setMsg('msgStatusAtleta', out.mensagem, true);
-        await carregarAtletasSelects();
-        await carregarAcessosSecretaria();
+        await Promise.all([carregarAtletasSelects(), carregarAcessosSecretaria()]);
       } catch (err) {
         setMsg('msgStatusAtleta', err.message, false);
       }
@@ -637,10 +650,7 @@ async function configurarSecretaria() {
         });
         setMsg('msgNovoAtleta', out.mensagem, true);
         formNovoAtleta.reset();
-        await carregarAtletasSelects();
-        await carregarPendentesSecretaria();
-        await carregarDesconsideradasSecretaria();
-        await carregarAcessosSecretaria();
+        await atualizarPainelSecretaria({ recarregarAtletas: true });
       } catch (err) {
         setMsg('msgNovoAtleta', err.message, false);
       }
@@ -668,10 +678,7 @@ async function configurarSecretaria() {
           body: JSON.stringify(payload),
         });
         setMsg('msgEditarAtleta', out.mensagem, true);
-        await carregarAtletasSelects();
-        await carregarPendentesSecretaria();
-        await carregarDesconsideradasSecretaria();
-        await carregarAcessosSecretaria();
+        await atualizarPainelSecretaria({ recarregarAtletas: true });
       } catch (err) {
         setMsg('msgEditarAtleta', err.message, false);
       }
@@ -694,10 +701,7 @@ async function configurarSecretaria() {
         });
         setMsg('msgEditarAtleta', out.mensagem, true);
         formRetirarAtleta.reset();
-        await carregarAtletasSelects();
-        await carregarPendentesSecretaria();
-        await carregarDesconsideradasSecretaria();
-        await carregarAcessosSecretaria();
+        await atualizarPainelSecretaria({ recarregarAtletas: true });
       } catch (err) {
         setMsg('msgEditarAtleta', err.message, false);
       }
@@ -719,19 +723,14 @@ async function configurarSecretaria() {
           body: JSON.stringify(payload),
         });
         setMsg('msgTrocaPosicoes', out.mensagem, true);
-        await carregarAtletasSelects();
-        await carregarPendentesSecretaria();
-        await carregarDesconsideradasSecretaria();
-        await carregarAcessosSecretaria();
+        await atualizarPainelSecretaria({ recarregarAtletas: true });
       } catch (err) {
         setMsg('msgTrocaPosicoes', err.message, false);
       }
     });
   }
 
-  await carregarPendentesSecretaria();
-  await carregarDesconsideradasSecretaria();
-  await carregarAcessosSecretaria();
+  await atualizarPainelSecretaria();
 }
 
 async function carregarDesafios() {
@@ -953,7 +952,7 @@ function boot() {
   }
 
   if (page === 'desafio') {
-    carregarAtletasSelects().then(() => {
+    carregarAtletasSelects({ carregarPartidas: false }).then(() => {
       document.getElementById('btnCarregarDesafios')?.addEventListener('click', carregarDesafios);
       document.getElementById('btnCopiarQuadro')?.addEventListener('click', copiarQuadroDesafio);
       carregarDesafios();

@@ -630,7 +630,7 @@ def create_app() -> Flask:
         pendentes = [
             _enriquecer_partida(p, atletas_map, quadras_map)
             for p in data['partidas']
-            if p.get('status') == 'pendente_agendamento'
+            if p.get('status') in {'pendente_agendamento', 'aguardando_data'}
         ]
         pendentes = sorted(pendentes, key=lambda p: p.get('data_desafio', ''), reverse=True)
         return jsonify(pendentes)
@@ -818,7 +818,7 @@ def create_app() -> Flask:
         existente = next(
             (
                 p for p in data['partidas']
-                if p.get('status') in {'pendente_agendamento', 'marcada', 'em_andamento'}
+                if p.get('status') in {'pendente_agendamento', 'aguardando_data', 'marcada', 'em_andamento'}
                 and p.get('desafiante') == desafiante_id
                 and p.get('desafiado') == desafiado_id
             ),
@@ -860,8 +860,8 @@ def create_app() -> Flask:
         partida = next((p for p in data['partidas'] if p.get('id') == partida_id), None)
         if not partida:
             return jsonify({'ok': False, 'mensagem': 'Partida pendente não encontrada.'}), 404
-        if partida.get('status') != 'pendente_agendamento':
-            return jsonify({'ok': False, 'mensagem': 'Partida não está pendente de agendamento.'}), 400
+        if partida.get('status') not in {'pendente_agendamento', 'aguardando_data'}:
+            return jsonify({'ok': False, 'mensagem': 'Partida não está pendente de agendamento nem aguardando data.'}), 400
 
         data_jogo = payload.get('data')
         horario = payload.get('horario')
