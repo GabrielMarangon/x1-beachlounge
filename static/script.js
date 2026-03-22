@@ -43,6 +43,7 @@ function destacarMenuAtivo() {
 let partidasLancaveisAtleta = [];
 let nomeAtletaSelecionadoDesafio = '';
 let rankingAtualCache = [];
+let atletasCache = [];
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -359,6 +360,7 @@ async function carregarAtleta() {
 
 async function carregarAtletasSelects() {
   const atletas = await api('/api/atletas');
+  atletasCache = atletas;
 
   const options = atletas
     .filter(a => !a.retirado)
@@ -366,7 +368,7 @@ async function carregarAtletasSelects() {
     .map(a => `<option value="${a.id}">${a.nome} (${a.categoria} - #${a.posicao})</option>`)
     .join('');
 
-  ['agendarDesafiante','agendarDesafiado','statusAtletaId','desafioAtleta','trocaAtletaA','trocaAtletaB'].forEach(id => {
+  ['agendarDesafiante','agendarDesafiado','statusAtletaId','desafioAtleta','trocaAtletaA','trocaAtletaB','editarAtletaId','retirarAtletaId'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = options;
   });
@@ -381,6 +383,16 @@ async function carregarAtletasSelects() {
   }
 
   atualizarOpcoesVencedorSecretaria(partidas);
+  preencherEdicaoAtleta();
+}
+
+function preencherEdicaoAtleta() {
+  const select = document.getElementById('editarAtletaId');
+  const nomeInput = document.getElementById('editarAtletaNome');
+  if (!select || !nomeInput) return;
+
+  const atleta = atletasCache.find((item) => item.id === select.value);
+  nomeInput.value = atleta?.nome || '';
 }
 
 function atualizarOpcoesVencedorSecretaria(partidasBase = null) {
@@ -631,6 +643,63 @@ async function configurarSecretaria() {
         await carregarAcessosSecretaria();
       } catch (err) {
         setMsg('msgNovoAtleta', err.message, false);
+      }
+    });
+  }
+
+  const editarAtletaSelect = document.getElementById('editarAtletaId');
+  if (editarAtletaSelect) {
+    editarAtletaSelect.addEventListener('change', preencherEdicaoAtleta);
+  }
+
+  const formEditarAtleta = document.getElementById('formEditarAtleta');
+  if (formEditarAtleta) {
+    formEditarAtleta.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const payload = {
+          atleta_id: document.getElementById('editarAtletaId').value,
+          nome: document.getElementById('editarAtletaNome').value,
+          observacoes: document.getElementById('editarAtletaObs').value,
+        };
+        const out = await api('/api/secretaria/atletas/editar', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload),
+        });
+        setMsg('msgEditarAtleta', out.mensagem, true);
+        await carregarAtletasSelects();
+        await carregarPendentesSecretaria();
+        await carregarDesconsideradasSecretaria();
+        await carregarAcessosSecretaria();
+      } catch (err) {
+        setMsg('msgEditarAtleta', err.message, false);
+      }
+    });
+  }
+
+  const formRetirarAtleta = document.getElementById('formRetirarAtleta');
+  if (formRetirarAtleta) {
+    formRetirarAtleta.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const payload = {
+          atleta_id: document.getElementById('retirarAtletaId').value,
+          observacoes: document.getElementById('retirarAtletaObs').value,
+        };
+        const out = await api('/api/secretaria/atletas/retirar', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload),
+        });
+        setMsg('msgEditarAtleta', out.mensagem, true);
+        formRetirarAtleta.reset();
+        await carregarAtletasSelects();
+        await carregarPendentesSecretaria();
+        await carregarDesconsideradasSecretaria();
+        await carregarAcessosSecretaria();
+      } catch (err) {
+        setMsg('msgEditarAtleta', err.message, false);
       }
     });
   }

@@ -713,6 +713,81 @@ def create_app() -> Flask:
         _save_atletas(atletas)
         return jsonify({'ok': True, 'mensagem': 'Novo atleta inserido com sucesso.', 'atleta': atleta_novo})
 
+    @app.route('/api/secretaria/atletas/editar', methods=['POST'])
+    def api_secretaria_editar_atleta():
+        _log_access('api_secretaria_editar_atleta')
+        data = _load_all()
+        payload = request.get_json(silent=True) or {}
+
+        atleta = next((a for a in data['atletas'] if a.get('id') == payload.get('atleta_id')), None)
+        if not atleta:
+            return jsonify({'ok': False, 'mensagem': 'Atleta não encontrado.'}), 404
+
+        nome = (payload.get('nome') or '').strip()
+        if not nome:
+            return jsonify({'ok': False, 'mensagem': 'Informe o novo nome do atleta.'}), 400
+
+        nome_normalizado = nome.casefold()
+        ranking = atleta.get('ranking')
+        existe = next(
+            (
+                outro for outro in data['atletas']
+                if outro.get('id') != atleta.get('id')
+                and outro.get('ranking') == ranking
+                and not outro.get('retirado')
+                and (outro.get('nome') or '').strip().casefold() == nome_normalizado
+            ),
+            None,
+        )
+        if existe:
+            return jsonify({'ok': False, 'mensagem': 'Já existe um atleta ativo com esse nome nesta categoria.'}), 400
+
+        atleta['nome'] = nome
+        if 'observacoes' in payload:
+            atleta['observacoes'] = payload.get('observacoes', '')
+
+        _save_atletas(data['atletas'])
+        return jsonify({'ok': True, 'mensagem': 'Nome do atleta atualizado com sucesso.', 'atleta': atleta})
+
+    @app.route('/api/secretaria/atletas/retirar', methods=['POST'])
+    def api_secretaria_retirar_atleta():
+        _log_access('api_secretaria_retirar_atleta')
+        data = _load_all()
+        payload = request.get_json(silent=True) or {}
+
+        atleta = next((a for a in data['atletas'] if a.get('id') == payload.get('atleta_id')), None)
+        if not atleta:
+            return jsonify({'ok': False, 'mensagem': 'Atleta não encontrado.'}), 404
+
+        if atleta.get('retirado'):
+            return jsonify({'ok': False, 'mensagem': 'Esse atleta já está retirado do ranking.'}), 400
+
+        confronto_ativo = next(
+            (
+                partida for partida in data['partidas']
+                if partida.get('status') in {'pendente_agendamento', 'aguardando_data', 'marcada', 'em_andamento'}
+                and atleta.get('id') in {partida.get('desafiante'), partida.get('desafiado')}
+            ),
+            None,
+        )
+        if confronto_ativo:
+            return jsonify({
+                'ok': False,
+                'mensagem': 'O atleta possui confronto ativo. Resolva ou exclua a partida antes de retirá-lo do ranking.',
+            }), 400
+
+        atleta['retirado'] = True
+        atleta['ativo'] = False
+        atleta['neutro'] = False
+        atleta['bloqueio_secretaria'] = False
+        atleta['bloqueio_motivo'] = ''
+        atleta['observacoes'] = (payload.get('observacoes') or '').strip() or 'Atleta retirado do ranking pela secretaria.'
+
+        normalizar_posicoes_ranking(data['atletas'], atleta.get('ranking'))
+        _recalcular_classes_ranking(data['atletas'], atleta.get('ranking'))
+        _save_atletas(data['atletas'])
+        return jsonify({'ok': True, 'mensagem': 'Atleta retirado do ranking com sucesso.', 'atleta': atleta})
+
     @app.route('/api/desafio/registrar', methods=['POST'])
     def api_registrar_desafio_para_secretaria():
         _log_access('api_secretaria_desafio_registrar')
