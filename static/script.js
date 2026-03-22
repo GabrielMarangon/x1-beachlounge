@@ -421,21 +421,42 @@ function atualizarOpcoesVencedorSecretaria(partidasBase = null) {
 }
 
 async function configurarSecretaria() {
-  async function atualizarPainelSecretaria({ recarregarAtletas = false } = {}) {
-    const tarefas = [];
-    if (recarregarAtletas) tarefas.push(carregarAtletasSelects());
-    tarefas.push(
-      carregarPendentesSecretaria(),
-      carregarDesconsideradasSecretaria(),
-      carregarAcessosSecretaria(),
-    );
-    await Promise.all(tarefas);
+  function preencherSelectsSecretaria(atletas, partidasMarcadas) {
+    atletasCache = atletas || [];
+
+    const options = atletasCache
+      .filter(a => !a.retirado)
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+      .map(a => `<option value="${a.id}">${a.nome} (${a.categoria} - #${a.posicao})</option>`)
+      .join('');
+
+    ['agendarDesafiante','agendarDesafiado','statusAtletaId','trocaAtletaA','trocaAtletaB','editarAtletaId','retirarAtletaId'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = options;
+    });
+
+    const partidaSel = document.getElementById('resultadoPartida');
+    if (partidaSel) {
+      partidaSel.innerHTML = (partidasMarcadas || [])
+        .map(p => `<option value="${p.id}">${p.id} - ${p.data} ${p.horario} - ${p.desafiante_nome} x ${p.desafiado_nome}</option>`)
+        .join('');
+    }
+
+    atualizarOpcoesVencedorSecretaria(partidasMarcadas || []);
+    preencherEdicaoAtleta();
   }
 
-  async function carregarDesconsideradasSecretaria() {
+  async function atualizarPainelSecretaria() {
+    const painel = await api('/api/secretaria/painel');
+    preencherSelectsSecretaria(painel.atletas || [], painel.partidas_marcadas || []);
+    carregarPendentesSecretaria(painel.pendentes || []);
+    carregarDesconsideradasSecretaria(painel.desconsideradas || []);
+    carregarAcessosSecretaria(painel.acessos || []);
+  }
+
+  function carregarDesconsideradasSecretaria(lista = []) {
     const tbody = document.querySelector('#desconsideradasTable tbody');
     if (!tbody) return;
-    const lista = await api('/api/secretaria/partidas-desconsideradas');
     tbody.innerHTML = lista.map((p) => `
       <tr>
         <td>${p.data || '-'}</td>
@@ -454,7 +475,7 @@ async function configurarSecretaria() {
             method: 'POST',
           });
           setMsg('msgDesconsideradas', out.mensagem, true);
-          await atualizarPainelSecretaria({ recarregarAtletas: true });
+          await atualizarPainelSecretaria();
         } catch (err) {
           setMsg('msgDesconsideradas', err.message, false);
         }
@@ -462,10 +483,9 @@ async function configurarSecretaria() {
     });
   }
 
-  async function carregarAcessosSecretaria() {
+  function carregarAcessosSecretaria(lista = []) {
     const tbody = document.querySelector('#acessosTable tbody');
     if (!tbody) return;
-    const lista = await api('/api/secretaria/acessos');
     tbody.innerHTML = lista.map((item) => `
       <tr>
         <td>${item.timestamp || '-'}</td>
@@ -479,10 +499,9 @@ async function configurarSecretaria() {
     `).join('') || '<tr><td colspan="7">Nenhum acesso registrado até agora.</td></tr>';
   }
 
-  async function carregarPendentesSecretaria() {
+  function carregarPendentesSecretaria(lista = []) {
     const tbody = document.querySelector('#pendentesSecretariaTable tbody');
     if (!tbody) return;
-    const lista = await api('/api/secretaria/desafios-pendentes');
     tbody.innerHTML = lista.map((p) => `
       <tr>
         <td><strong>${p.desafiante_nome}</strong> x <strong>${p.desafiado_nome}</strong></td>
@@ -572,7 +591,7 @@ async function configurarSecretaria() {
         if (hidden) hidden.value = '';
         if (semDataInput) semDataInput.checked = false;
         atualizarCamposAgendamento();
-        await atualizarPainelSecretaria({ recarregarAtletas: !partidaPendenteId });
+        await atualizarPainelSecretaria();
       } catch (err) {
         setMsg('msgAgendar', err.message, false);
       }
@@ -597,7 +616,7 @@ async function configurarSecretaria() {
           body: JSON.stringify(payload),
         });
         setMsg('msgResultado', out.mensagem, true);
-        await atualizarPainelSecretaria({ recarregarAtletas: true });
+        await atualizarPainelSecretaria();
       } catch (err) {
         setMsg('msgResultado', err.message, false);
       }
@@ -625,7 +644,7 @@ async function configurarSecretaria() {
           body: JSON.stringify(payload),
         });
         setMsg('msgStatusAtleta', out.mensagem, true);
-        await Promise.all([carregarAtletasSelects(), carregarAcessosSecretaria()]);
+        await atualizarPainelSecretaria();
       } catch (err) {
         setMsg('msgStatusAtleta', err.message, false);
       }
@@ -650,7 +669,7 @@ async function configurarSecretaria() {
         });
         setMsg('msgNovoAtleta', out.mensagem, true);
         formNovoAtleta.reset();
-        await atualizarPainelSecretaria({ recarregarAtletas: true });
+        await atualizarPainelSecretaria();
       } catch (err) {
         setMsg('msgNovoAtleta', err.message, false);
       }
@@ -678,7 +697,7 @@ async function configurarSecretaria() {
           body: JSON.stringify(payload),
         });
         setMsg('msgEditarAtleta', out.mensagem, true);
-        await atualizarPainelSecretaria({ recarregarAtletas: true });
+        await atualizarPainelSecretaria();
       } catch (err) {
         setMsg('msgEditarAtleta', err.message, false);
       }
@@ -701,7 +720,7 @@ async function configurarSecretaria() {
         });
         setMsg('msgEditarAtleta', out.mensagem, true);
         formRetirarAtleta.reset();
-        await atualizarPainelSecretaria({ recarregarAtletas: true });
+        await atualizarPainelSecretaria();
       } catch (err) {
         setMsg('msgEditarAtleta', err.message, false);
       }
@@ -723,7 +742,7 @@ async function configurarSecretaria() {
           body: JSON.stringify(payload),
         });
         setMsg('msgTrocaPosicoes', out.mensagem, true);
-        await atualizarPainelSecretaria({ recarregarAtletas: true });
+        await atualizarPainelSecretaria();
       } catch (err) {
         setMsg('msgTrocaPosicoes', err.message, false);
       }

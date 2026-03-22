@@ -320,6 +320,42 @@ def _estatisticas_atleta(atleta_id: str, partidas: List[Dict[str, Any]]) -> Dict
     }
 
 
+def _montar_painel_secretaria(data: Dict[str, Any]) -> Dict[str, Any]:
+    atletas_map = indice_por_id(data['atletas'])
+    quadras_map = indice_por_id(data['quadras'])
+
+    pendentes = [
+        _enriquecer_partida(p, atletas_map, quadras_map)
+        for p in data['partidas']
+        if p.get('status') in {'pendente_agendamento', 'aguardando_data'}
+    ]
+    pendentes = sorted(pendentes, key=lambda p: p.get('data_desafio', ''), reverse=True)
+
+    desconsideradas = [
+        _enriquecer_partida(p, atletas_map, quadras_map)
+        for p in data['partidas']
+        if p.get('status') == 'desconsiderada'
+    ]
+    desconsideradas = ordenar_partidas_por_data(desconsideradas)
+
+    partidas_marcadas = [
+        _enriquecer_partida(p, atletas_map, quadras_map)
+        for p in data['partidas']
+        if p.get('status') == 'marcada'
+    ]
+    partidas_marcadas = ordenar_partidas_por_data(partidas_marcadas)
+
+    acessos = sorted(_load_access_logs(), key=lambda item: item.get('timestamp', ''), reverse=True)[:120]
+
+    return {
+        'atletas': data['atletas'],
+        'pendentes': pendentes,
+        'desconsideradas': desconsideradas,
+        'partidas_marcadas': partidas_marcadas,
+        'acessos': acessos,
+    }
+
+
 def create_app() -> Flask:
     app = Flask(__name__)
     app.secret_key = os.getenv('FLASK_SECRET_KEY') or os.getenv('SECRET_KEY') or 'x1-btc-dev-key'
@@ -625,33 +661,21 @@ def create_app() -> Flask:
     @app.route('/api/secretaria/desafios-pendentes')
     def api_desafios_pendentes_secretaria():
         data = _load_all()
-        atletas_map = indice_por_id(data['atletas'])
-        quadras_map = indice_por_id(data['quadras'])
-        pendentes = [
-            _enriquecer_partida(p, atletas_map, quadras_map)
-            for p in data['partidas']
-            if p.get('status') in {'pendente_agendamento', 'aguardando_data'}
-        ]
-        pendentes = sorted(pendentes, key=lambda p: p.get('data_desafio', ''), reverse=True)
-        return jsonify(pendentes)
+        return jsonify(_montar_painel_secretaria(data)['pendentes'])
+
+    @app.route('/api/secretaria/painel')
+    def api_secretaria_painel():
+        data = _load_all()
+        return jsonify(_montar_painel_secretaria(data))
 
     @app.route('/api/secretaria/partidas-desconsideradas')
     def api_partidas_desconsideradas_secretaria():
         data = _load_all()
-        atletas_map = indice_por_id(data['atletas'])
-        quadras_map = indice_por_id(data['quadras'])
-        partidas = [
-            _enriquecer_partida(p, atletas_map, quadras_map)
-            for p in data['partidas']
-            if p.get('status') == 'desconsiderada'
-        ]
-        partidas = ordenar_partidas_por_data(partidas)
-        return jsonify(partidas)
+        return jsonify(_montar_painel_secretaria(data)['desconsideradas'])
 
     @app.route('/api/secretaria/acessos')
     def api_secretaria_acessos():
-        logs = sorted(_load_access_logs(), key=lambda item: item.get('timestamp', ''), reverse=True)
-        return jsonify(logs[:200])
+        return jsonify(sorted(_load_access_logs(), key=lambda item: item.get('timestamp', ''), reverse=True)[:120])
 
     @app.route('/api/secretaria/atletas', methods=['POST'])
     def api_secretaria_inserir_atleta():
