@@ -9,3 +9,7 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
+      - key: DATA_DIR
+        value: /var/data
+      - key: X1_BTC_REQUIRE_DATA_DIR
+        value: "1"

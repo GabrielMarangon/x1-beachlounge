@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+import logging
 import os
 import re
 import unicodedata
@@ -28,6 +29,7 @@ from regras_ranking import (
     pode_desafiar_com_partidas,
     verificar_status_atleta,
 )
+from storage_config import StoragePaths, resolve_storage_paths
 from utils import (
     agora_brasilia,
     atletas_ativos_do_ranking,
@@ -40,26 +42,31 @@ from utils import (
 )
 
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / 'dados'
 
 
-def _runtime_data_dir() -> Path:
-    configured = os.getenv('X1_BTC_DATA_DIR') or os.getenv('RENDER_DISK_PATH')
-    if configured:
-        return Path(configured)
-    default_render_disk = Path('/var/data')
-    if os.name != 'nt' and default_render_disk.exists():
-        return default_render_disk
-    return DATA_DIR
+def _configure_logging() -> logging.Logger:
+    logging.basicConfig(
+        level=os.getenv('LOG_LEVEL', 'INFO').upper(),
+        format='%(asctime)s %(levelname)s %(name)s: %(message)s',
+    )
+    return logging.getLogger('x1_btc')
 
 
-RUNTIME_DATA_DIR = _runtime_data_dir()
-ATLETAS_PATH = DATA_DIR / 'atletas.json'
-QUADRAS_PATH = DATA_DIR / 'quadras.json'
-HORARIOS_PATH = DATA_DIR / 'horarios.json'
-PARTIDAS_PATH = DATA_DIR / 'partidas.json'
-DB_PATH = RUNTIME_DATA_DIR / 'x1_btc.db'
-STORE = DataStore(DB_PATH, DATA_DIR, RUNTIME_DATA_DIR)
+LOGGER = _configure_logging()
+STORAGE: StoragePaths = resolve_storage_paths(BASE_DIR)
+BOOTSTRAP_DATA_DIR = STORAGE.bootstrap_dir
+RUNTIME_DATA_DIR = STORAGE.runtime_dir
+DB_PATH = STORAGE.db_path
+STORE = DataStore(DB_PATH, BOOTSTRAP_DATA_DIR, RUNTIME_DATA_DIR)
+
+LOGGER.info('Bootstrap de dados configurado em: %s', BOOTSTRAP_DATA_DIR)
+LOGGER.info('Diretorio operacional configurado em: %s', RUNTIME_DATA_DIR)
+LOGGER.info('Banco operacional configurado em: %s', DB_PATH)
+LOGGER.info(
+    'Persistencia inicializada via %s (modo estrito=%s).',
+    STORAGE.source,
+    STORAGE.strict_mode,
+)
 
 RANKING_ROTULOS = {
     'masculino_principal': 'Masculino Principal',
@@ -372,6 +379,7 @@ def create_app() -> Flask:
             'login_secretaria',
             'logout_secretaria',
             'health',
+            'health_storage',
         }
         exige_identificacao = request.endpoint not in identificacao_livre
         if (
@@ -512,6 +520,23 @@ def create_app() -> Flask:
     @app.route('/health')
     def health():
         return {'status': 'ok'}, 200
+
+    @app.route('/health/storage')
+    def health_storage():
+        runtime_files = sorted(path.name for path in RUNTIME_DATA_DIR.glob('*') if path.is_file())
+        return jsonify({
+            'status': 'ok',
+            'storage': {
+                'bootstrap_dir': str(BOOTSTRAP_DATA_DIR),
+                'runtime_dir': str(RUNTIME_DATA_DIR),
+                'db_path': str(DB_PATH),
+                'source': STORAGE.source,
+                'strict_mode': STORAGE.strict_mode,
+                'runtime_exists': RUNTIME_DATA_DIR.exists(),
+                'runtime_writable': os.access(RUNTIME_DATA_DIR, os.W_OK),
+                'runtime_files': runtime_files,
+            },
+        }), 200
 
     @app.route('/api/ranking')
     def api_ranking():
