@@ -669,6 +669,15 @@ button:hover {
   gap: 0.45rem;
 }
 
+.regulamento-sublista {
+  list-style: none;
+  padding-left: 0;
+}
+
+.regulamento-sublista li {
+  padding-left: 0;
+}
+
 .auth-container {
   min-height: 100vh;
   display: grid;
