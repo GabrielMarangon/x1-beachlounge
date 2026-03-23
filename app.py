@@ -22,7 +22,10 @@ from agenda import (
     verificar_conflito_quadras,
 )
 from datastore import DataStore
-from ranking_logic import atualizar_ranking_apos_resultado
+from ranking_logic import (
+    aplicar_wo_automatico_partidas_vencidas,
+    atualizar_ranking_apos_resultado,
+)
 from regras_ranking import (
     listar_desafiantes_abaixo,
     listar_desafios_possiveis,
@@ -86,8 +89,51 @@ def _load_all() -> Dict[str, Any]:
         'horarios': STORE.load_dataset('horarios'),
         'partidas': STORE.load_dataset('partidas'),
     }
+    _aplicar_wo_automatico_por_prazo(data)
     normalizar_posicoes_ranking(data['atletas'])
     return data
+
+
+def _snapshot_ranking_categoria(atletas: List[Dict[str, Any]], ranking_partida: str | None) -> Dict[str, Dict[str, Any]]:
+    snapshot: Dict[str, Dict[str, Any]] = {}
+    for atleta in atletas:
+        if atleta.get('ranking') != ranking_partida:
+            continue
+        snapshot[atleta['id']] = {
+            'posicao': atleta.get('posicao'),
+            'wo_consecutivos': atleta.get('wo_consecutivos'),
+            'ultimo_jogo': atleta.get('ultimo_jogo'),
+            'ultimo_desafio': atleta.get('ultimo_desafio'),
+            'bloqueado_ate': atleta.get('bloqueado_ate'),
+            'observacoes': atleta.get('observacoes'),
+        }
+    return snapshot
+
+
+def _aplicar_wo_automatico_por_prazo(data: Dict[str, Any]) -> None:
+    candidatas = []
+    for partida in data['partidas']:
+        if partida.get('status') not in {'pendente_agendamento', 'aguardando_data', 'marcada', 'em_andamento'}:
+            continue
+        if partida.get('snapshot_pre_resultado'):
+            continue
+        partida['status_antes_resultado'] = partida.get('status', 'marcada')
+        partida['snapshot_pre_resultado'] = _snapshot_ranking_categoria(data['atletas'], partida.get('categoria'))
+        candidatas.append(partida)
+
+    processadas = aplicar_wo_automatico_partidas_vencidas(data['partidas'], data['atletas'])
+    processadas_ids = {partida.get('id') for partida in processadas}
+    for partida in candidatas:
+        if partida.get('id') in processadas_ids:
+            continue
+        partida.pop('snapshot_pre_resultado', None)
+        partida.pop('status_antes_resultado', None)
+
+    if not processadas:
+        return
+
+    _save_atletas(data['atletas'])
+    _save_partidas(data['partidas'])
 
 
 def _save_atletas(atletas: List[Dict[str, Any]]) -> None:

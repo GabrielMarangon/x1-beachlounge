@@ -3,8 +3,8 @@
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Tuple
 
-from regras_ranking import aplicar_wo_consecutivo
-from utils import agora_brasilia, atletas_ativos_do_ranking, normalizar_posicoes_ranking
+from regras_ranking import PRAZO_DESAFIO_DIAS, aplicar_wo_consecutivo
+from utils import agora_brasilia, atletas_ativos_do_ranking, normalizar_posicoes_ranking, parse_iso_brasilia
 
 
 def _categoria_atletas(atletas: List[Dict[str, Any]], ranking: str) -> List[Dict[str, Any]]:
@@ -64,7 +64,26 @@ def _bloqueio_ate_meio_dia_dia_seguinte(partida: Dict[str, Any], referencia: dat
     return (referencia + timedelta(days=1)).replace(hour=12, minute=0, second=0, microsecond=0)
 
 
-def atualizar_ranking_apos_resultado(partida: Dict[str, Any], atletas: List[Dict[str, Any]]) -> Tuple[bool, str]:
+def partida_ativa_vencida_por_prazo(partida: Dict[str, Any], referencia_dt: datetime | None = None) -> bool:
+    now = referencia_dt or agora_brasilia()
+    if partida.get('status') not in {'pendente_agendamento', 'aguardando_data', 'marcada', 'em_andamento'}:
+        return False
+    if partida.get('data_registro_resultado') or partida.get('vencedor'):
+        return False
+
+    dt_desafio = parse_iso_brasilia(partida.get('data_desafio'))
+    if not dt_desafio:
+        return False
+
+    prazo_final = dt_desafio + timedelta(days=PRAZO_DESAFIO_DIAS)
+    return now > prazo_final
+
+
+def atualizar_ranking_apos_resultado(
+    partida: Dict[str, Any],
+    atletas: List[Dict[str, Any]],
+    referencia_dt: datetime | None = None,
+) -> Tuple[bool, str]:
     desafiante_id = partida.get('desafiante')
     desafiado_id = partida.get('desafiado')
     vencedor_id = partida.get('vencedor')
@@ -79,7 +98,7 @@ def atualizar_ranking_apos_resultado(partida: Dict[str, Any], atletas: List[Dict
     if not desafiante or not desafiado:
         return False, 'Atletas não encontrados para atualização de ranking.'
 
-    now = agora_brasilia()
+    now = referencia_dt or agora_brasilia()
 
     if vencedor_id == desafiante_id:
         processar_vitoria_desafiante(atletas, desafiante_id, desafiado_id)
@@ -105,3 +124,31 @@ def atualizar_ranking_apos_resultado(partida: Dict[str, Any], atletas: List[Dict
     partida['data_registro_resultado'] = now.isoformat(timespec='minutes')
 
     return True, 'Ranking atualizado com sucesso.'
+
+
+def aplicar_wo_automatico_partidas_vencidas(
+    partidas: List[Dict[str, Any]],
+    atletas: List[Dict[str, Any]],
+    referencia_dt: datetime | None = None,
+) -> List[Dict[str, Any]]:
+    now = referencia_dt or agora_brasilia()
+    processadas: List[Dict[str, Any]] = []
+
+    partidas_ativas = sorted(
+        [p for p in partidas if partida_ativa_vencida_por_prazo(p, now)],
+        key=lambda partida: partida.get('data_desafio') or '',
+    )
+
+    for partida in partidas_ativas:
+        partida['vencedor'] = partida.get('desafiante')
+        partida['wo'] = True
+        partida['resultado'] = 'W.O. por prazo expirado'
+        observacao_base = (partida.get('observacoes') or '').strip()
+        complemento = 'W.O. automático por prazo expirado em favor do desafiante.'
+        partida['observacoes'] = f'{observacao_base} {complemento}'.strip() if observacao_base else complemento
+
+        ok, _ = atualizar_ranking_apos_resultado(partida, atletas, referencia_dt=now)
+        if ok:
+            processadas.append(partida)
+
+    return processadas
