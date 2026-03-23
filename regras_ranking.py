@@ -49,7 +49,7 @@ def _atleta_em_desafio(partidas: List[Dict[str, Any]] | None, atleta_id: str) ->
         return False
     return any(
         atleta_id in {p.get('desafiante'), p.get('desafiado')}
-        and p.get('status') in {'pendente_agendamento', 'marcada', 'em_andamento'}
+        and p.get('status') in {'pendente_agendamento', 'aguardando_data', 'marcada', 'em_andamento'}
         for p in partidas
     )
 
