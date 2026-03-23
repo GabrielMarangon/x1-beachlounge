@@ -59,9 +59,35 @@ def _partidas_finalizadas(partidas: List[Dict[str, Any]] | None) -> List[Dict[st
         return []
     return [
         partida for partida in partidas
-        if partida.get('status') in {'finalizada', 'realizada'}
-        and partida.get('data_registro_resultado')
+        if _partida_conta_como_confronto_encerrado(partida)
     ]
+
+
+def _momento_confronto_encerrado(partida: Dict[str, Any]) -> datetime | None:
+    data_registro = _parse_dt(partida.get('data_registro_resultado'))
+    if data_registro:
+        return data_registro
+
+    if partida.get('data') and partida.get('horario'):
+        data_partida = _parse_dt(f"{partida.get('data')}T{partida.get('horario')}:00")
+        if data_partida:
+            return data_partida
+
+    return _parse_dt(partida.get('data_desafio'))
+
+
+def _partida_conta_como_confronto_encerrado(partida: Dict[str, Any]) -> bool:
+    if partida.get('status') in {'finalizada', 'realizada'}:
+        return _momento_confronto_encerrado(partida) is not None
+
+    # Compatibilidade com confrontos antigos que podem ter ficado como
+    # "desconsiderada", mas já tiveram vencedor/W.O. aplicado no ranking.
+    if partida.get('status') == 'desconsiderada' and (
+        partida.get('wo') or partida.get('vencedor') or partida.get('resultado')
+    ):
+        return _momento_confronto_encerrado(partida) is not None
+
+    return False
 
 
 def _atletas_mesmo_ranking(atletas: List[Dict[str, Any]] | None, ranking: str | None) -> List[Dict[str, Any]]:
@@ -162,9 +188,9 @@ def _bloqueio_repeticao_confronto(
 
     ultimo_confronto = max(
         historico_dupla,
-        key=lambda partida: _parse_dt(partida.get('data_registro_resultado')) or datetime.min,
+        key=lambda partida: _momento_confronto_encerrado(partida) or datetime.min,
     )
-    data_ultimo = _parse_dt(ultimo_confronto.get('data_registro_resultado'))
+    data_ultimo = _momento_confronto_encerrado(ultimo_confronto)
     if not data_ultimo:
         return False, 'Sem bloqueio de repetição.'
 
@@ -175,7 +201,7 @@ def _bloqueio_repeticao_confronto(
         partida.get('id') != ultimo_confronto.get('id')
         and (desafiante_id in {partida.get('desafiante'), partida.get('desafiado')}
              or desafiado_id in {partida.get('desafiante'), partida.get('desafiado')})
-        and (_parse_dt(partida.get('data_registro_resultado')) or datetime.min) > data_ultimo
+        and (_momento_confronto_encerrado(partida) or datetime.min) > data_ultimo
         for partida in _partidas_finalizadas(partidas)
     )
     if houve_outro_jogo:
