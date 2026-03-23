@@ -269,6 +269,8 @@ async function carregarPartidas() {
       <td>
         ${(p.status === 'pendente_agendamento' || p.status === 'aguardando_data' || p.status === 'marcada' || p.status === 'em_andamento')
           ? `<button type="button" class="btn-excluir-partida" data-partida-id="${p.id}">Excluir</button>`
+          : (p.status === 'finalizada' && p.wo && p.resultado === 'W.O. por prazo expirado')
+            ? `<button type="button" class="btn-reverter-wo" data-partida-id="${p.id}">Reverter W.O.</button>`
           : '-'
         }
       </td>
@@ -277,6 +279,9 @@ async function carregarPartidas() {
 
   tbody.querySelectorAll('.btn-excluir-partida').forEach((btn) => {
     btn.addEventListener('click', () => excluirPartida(btn.dataset.partidaId));
+  });
+  tbody.querySelectorAll('.btn-reverter-wo').forEach((btn) => {
+    btn.addEventListener('click', () => apagarResultado(btn.dataset.partidaId, carregarPartidas));
   });
 }
 

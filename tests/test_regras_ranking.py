@@ -133,6 +133,71 @@ class RegrasRankingTests(unittest.TestCase):
 
         self.assertFalse(valido)
         self.assertIn("Repetição do mesmo confronto bloqueada", mensagem)
+        self.assertIn("23:59", mensagem)
+
+    def test_repeticao_do_mesmo_confronto_expira_so_ao_fim_do_dia(self):
+        atletas = [
+            {
+                "id": "a1",
+                "nome": "Atleta 1",
+                "ranking": "masculino_principal",
+                "posicao": 1,
+                "ativo": True,
+                "retirado": False,
+                "neutro": False,
+                "bloqueio_secretaria": False,
+                "bloqueio_motivo": "",
+                "bloqueado_ate": None,
+            },
+            {
+                "id": "a2",
+                "nome": "Atleta 2",
+                "ranking": "masculino_principal",
+                "posicao": 2,
+                "ativo": True,
+                "retirado": False,
+                "neutro": False,
+                "bloqueio_secretaria": False,
+                "bloqueio_motivo": "",
+                "bloqueado_ate": None,
+            },
+        ]
+        partidas = [
+            {
+                "id": "p-legado",
+                "desafiante": "a1",
+                "desafiado": "a2",
+                "categoria": "masculino_principal",
+                "status": "desconsiderada",
+                "resultado": "W.O. por prazo expirado",
+                "vencedor": "a1",
+                "wo": True,
+                "data_registro_resultado": "2026-03-12T10:01",
+                "data_desafio": "2026-03-01T09:00",
+                "observacoes": "W.O. automático por prazo expirado em favor do desafiante.",
+            }
+        ]
+
+        valido, mensagem = pode_desafiar_com_partidas(
+            atletas[1],
+            atletas[0],
+            partidas=partidas,
+            atletas=atletas,
+            referencia_dt=datetime(2026, 3, 22, 18, 0),
+        )
+
+        self.assertFalse(valido)
+        self.assertIn("23:59", mensagem)
+
+        valido, _ = pode_desafiar_com_partidas(
+            atletas[1],
+            atletas[0],
+            partidas=partidas,
+            atletas=atletas,
+            referencia_dt=datetime(2026, 3, 23, 0, 0),
+        )
+
+        self.assertTrue(valido)
 
     def test_repeticao_do_mesmo_confronto_fica_bloqueada_para_wo_legado_desconsiderado(self):
         atletas = [

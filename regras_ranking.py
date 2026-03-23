@@ -194,7 +194,14 @@ def _bloqueio_repeticao_confronto(
     if not data_ultimo:
         return False, 'Sem bloqueio de repetição.'
 
-    if referencia_dt > data_ultimo + timedelta(days=PRAZO_DESAFIO_DIAS):
+    limite_dt = (data_ultimo + timedelta(days=PRAZO_DESAFIO_DIAS)).replace(
+        hour=23,
+        minute=59,
+        second=59,
+        microsecond=0,
+    )
+
+    if referencia_dt > limite_dt:
         return False, 'Janela de repetição já expirou.'
 
     houve_outro_jogo = any(
@@ -207,7 +214,7 @@ def _bloqueio_repeticao_confronto(
     if houve_outro_jogo:
         return False, 'Atleta já fez outro jogo após o último confronto.'
 
-    limite = (data_ultimo + timedelta(days=PRAZO_DESAFIO_DIAS)).strftime('%d/%m/%Y %H:%M')
+    limite = limite_dt.strftime('%d/%m/%Y %H:%M')
     return True, f'Repetição do mesmo confronto bloqueada até {limite}.'
 
 
