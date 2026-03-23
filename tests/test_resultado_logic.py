@@ -128,6 +128,91 @@ class ResultadoLogicTests(unittest.TestCase):
         self.assertEqual(2, next(a for a in atletas if a["id"] == "a1")["posicao"])
         self.assertEqual(1, next(a for a in atletas if a["id"] == "a2")["posicao"])
 
+    def test_reversao_respeita_posicoes_exatas_do_snapshot_sem_normalizar(self):
+        atletas = [
+            {
+                "id": "a1",
+                "nome": "Atleta 1",
+                "ranking": "masculino_principal",
+                "posicao": 1,
+                "ativo": True,
+                "retirado": False,
+                "wo_consecutivos": 0,
+                "ultimo_jogo": "2026-03-23",
+                "ultimo_desafio": None,
+                "bloqueado_ate": None,
+                "observacoes": "",
+            },
+            {
+                "id": "a2",
+                "nome": "Atleta 2",
+                "ranking": "masculino_principal",
+                "posicao": 2,
+                "ativo": False,
+                "retirado": False,
+                "wo_consecutivos": 0,
+                "ultimo_jogo": None,
+                "ultimo_desafio": None,
+                "bloqueado_ate": None,
+                "observacoes": "",
+            },
+            {
+                "id": "a3",
+                "nome": "Atleta 3",
+                "ranking": "masculino_principal",
+                "posicao": 3,
+                "ativo": True,
+                "retirado": False,
+                "wo_consecutivos": 0,
+                "ultimo_jogo": "2026-03-23",
+                "ultimo_desafio": None,
+                "bloqueado_ate": None,
+                "observacoes": "",
+            },
+        ]
+        partida = {
+            "id": "p3",
+            "categoria": "masculino_principal",
+            "status": "finalizada",
+            "status_antes_resultado": "marcada",
+            "resultado": "W.O. por prazo expirado",
+            "vencedor": "a3",
+            "wo": True,
+            "snapshot_pre_resultado": {
+                "a1": {
+                    "posicao": 1,
+                    "wo_consecutivos": 0,
+                    "ultimo_jogo": None,
+                    "ultimo_desafio": None,
+                    "bloqueado_ate": None,
+                    "observacoes": "",
+                },
+                "a2": {
+                    "posicao": 2,
+                    "wo_consecutivos": 0,
+                    "ultimo_jogo": None,
+                    "ultimo_desafio": None,
+                    "bloqueado_ate": None,
+                    "observacoes": "",
+                },
+                "a3": {
+                    "posicao": 3,
+                    "wo_consecutivos": 0,
+                    "ultimo_jogo": None,
+                    "ultimo_desafio": None,
+                    "bloqueado_ate": None,
+                    "observacoes": "",
+                },
+            },
+        }
+
+        ok, _ = reverter_resultado_com_snapshot(partida, atletas)
+
+        self.assertTrue(ok)
+        self.assertEqual(1, next(a for a in atletas if a["id"] == "a1")["posicao"])
+        self.assertEqual(2, next(a for a in atletas if a["id"] == "a2")["posicao"])
+        self.assertEqual(3, next(a for a in atletas if a["id"] == "a3")["posicao"])
+
 
 if __name__ == "__main__":
     unittest.main()

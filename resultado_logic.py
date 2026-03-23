@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
-from utils import agora_brasilia, indice_por_id, normalizar_posicoes_ranking
+from utils import agora_brasilia, indice_por_id
 
 
 def reverter_resultado_com_snapshot(partida: Dict[str, Any], atletas: List[Dict[str, Any]]) -> Tuple[bool, str]:
@@ -27,8 +27,6 @@ def reverter_resultado_com_snapshot(partida: Dict[str, Any], atletas: List[Dict[
         atleta['ultimo_desafio'] = estado.get('ultimo_desafio')
         atleta['bloqueado_ate'] = estado.get('bloqueado_ate')
         atleta['observacoes'] = estado.get('observacoes', '')
-
-    normalizar_posicoes_ranking(atletas, partida.get('categoria'))
 
     era_wo_automatico = (
         partida.get('wo')
