@@ -136,6 +136,33 @@ def _aplicar_wo_automatico_por_prazo(data: Dict[str, Any]) -> None:
     _save_partidas(data['partidas'])
 
 
+def _rotulo_status_partida(partida: Dict[str, Any]) -> str:
+    status = partida.get('status') or ''
+    resultado = (partida.get('resultado') or '').strip()
+    observacoes = (partida.get('observacoes') or '').lower()
+    if partida.get('wo') and (
+        resultado == 'W.O. por prazo expirado' or 'prazo expirado' in observacoes
+    ):
+        return 'W.O. automático por prazo expirado'
+    if status == 'marcada':
+        return 'Marcada'
+    if status == 'pendente_agendamento':
+        return 'Pendente de agendamento'
+    if status == 'aguardando_data':
+        return 'Sem data definida'
+    if status == 'finalizada':
+        return 'Finalizada'
+    if status == 'desconsiderada':
+        return 'Desconsiderada'
+    if status == 'cancelada':
+        return 'Cancelada'
+    if status == 'em_andamento':
+        return 'Em andamento'
+    if status == 'realizada':
+        return 'Realizada'
+    return status or '-'
+
+
 def _save_atletas(atletas: List[Dict[str, Any]]) -> None:
     STORE.save_dataset('atletas', atletas)
 
@@ -346,6 +373,7 @@ def _enriquecer_partida(partida: Dict[str, Any], atletas_map: Dict[str, Dict[str
     p['desafiado_nome'] = r.get('nome', p.get('desafiado'))
     p['quadra_nome'] = q.get('nome', p.get('quadra'))
     p['categoria_label'] = RANKING_ROTULOS.get(p.get('categoria'), p.get('categoria'))
+    p['status_exibicao'] = _rotulo_status_partida(p)
     return p
 
 

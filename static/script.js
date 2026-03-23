@@ -246,14 +246,17 @@ async function carregarPartidas() {
   const lista = await api(`/api/partidas?${params.toString()}`);
   const tbody = document.querySelector('#partidasTable tbody');
   if (!tbody) return;
-  const badge = (status) => {
+  const badge = (partida) => {
+    const status = partida.status || '';
+    const rotulo = partida.status_exibicao || status || '-';
+    if (rotulo === 'W.O. automático por prazo expirado') return `<span class="status-chip status-vermelho">${rotulo}</span>`;
     if (status === 'marcada') return '<span class="status-chip status-verde">Marcada</span>';
     if (status === 'pendente_agendamento') return '<span class="status-chip status-amarelo">Pendente de agendamento</span>';
     if (status === 'aguardando_data') return '<span class="status-chip status-amarelo">Sem data definida</span>';
-    if (status === 'finalizada') return '<span class="status-chip status-cinza">Finalizada</span>';
-    if (status === 'desconsiderada') return '<span class="status-chip status-vermelho">Desconsiderada</span>';
-    if (status === 'cancelada') return '<span class="status-chip status-amarelo">Cancelada</span>';
-    return `<span class="status-chip status-amarelo">${status || '-'}</span>`;
+    if (status === 'finalizada') return `<span class="status-chip status-cinza">${rotulo}</span>`;
+    if (status === 'desconsiderada') return `<span class="status-chip status-vermelho">${rotulo}</span>`;
+    if (status === 'cancelada') return `<span class="status-chip status-amarelo">${rotulo}</span>`;
+    return `<span class="status-chip status-amarelo">${rotulo}</span>`;
   };
   tbody.innerHTML = lista.map(p => `
     <tr>
@@ -262,7 +265,7 @@ async function carregarPartidas() {
       <td>${p.quadra_nome}</td>
       <td><strong>${p.desafiante_nome}</strong> x <strong>${p.desafiado_nome}</strong></td>
       <td>${p.categoria_label}</td>
-      <td>${badge(p.status)}</td>
+      <td>${badge(p)}</td>
       <td>
         ${(p.status === 'pendente_agendamento' || p.status === 'aguardando_data' || p.status === 'marcada' || p.status === 'em_andamento')
           ? `<button type="button" class="btn-excluir-partida" data-partida-id="${p.id}">Excluir</button>`
@@ -342,7 +345,7 @@ async function carregarAtleta() {
       <tr>
         <td>${p.data || '-'}</td>
         <td>${p.horario || '-'}</td>
-        <td>${p.status || '-'}</td>
+        <td>${p.status_exibicao || p.status || '-'}</td>
         <td>${p.resultado || '-'}</td>
         <td>
           ${(p.status === 'finalizada' || p.status === 'realizada')
@@ -463,7 +466,7 @@ async function configurarSecretaria() {
         <td>${p.horario || '-'}</td>
         <td><strong>${p.desafiante_nome}</strong> x <strong>${p.desafiado_nome}</strong></td>
         <td>${p.categoria_label || p.categoria || '-'}</td>
-        <td>${p.status || '-'}</td>
+        <td>${p.status_exibicao || p.status || '-'}</td>
         <td><button type="button" class="btn-reativar-desconsiderada" data-partida-id="${p.id}">Reativar</button></td>
       </tr>
     `).join('') || '<tr><td colspan="6">Sem partidas desconsideradas.</td></tr>';
@@ -857,7 +860,7 @@ async function carregarPartidasAtletaParaResultado() {
           <td>${p.horario || '-'}</td>
           <td>${p.desafiante_nome} x ${p.desafiado_nome}</td>
           <td>${p.resultado || '-'}</td>
-          <td>${p.status || '-'}</td>
+          <td>${p.status_exibicao || p.status || '-'}</td>
           <td>
             ${(p.status === 'finalizada' || p.status === 'realizada')
               ? `<button type="button" class="btn-apagar-resultado" data-partida-id="${p.id}">Apagar resultado</button>`
