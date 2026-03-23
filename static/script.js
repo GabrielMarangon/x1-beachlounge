@@ -447,7 +447,6 @@ async function configurarSecretaria() {
   async function atualizarPainelSecretaria() {
     const painel = await api('/api/secretaria/painel');
     preencherSelectsSecretaria(painel.atletas || [], painel.partidas_marcadas || []);
-    carregarPendentesSecretaria(painel.pendentes || []);
     carregarDesconsideradasSecretaria(painel.desconsideradas || []);
     carregarTodasPartidasSecretaria(painel.todas_partidas || []);
     carregarAcessosSecretaria(painel.acessos || []);
@@ -527,7 +526,7 @@ async function configurarSecretaria() {
           <td><strong>${p.desafiante_nome}</strong> x <strong>${p.desafiado_nome}</strong></td>
           <td>${p.categoria_label || p.categoria || '-'}</td>
           <td>${badgePartidaSecretaria(p)}</td>
-          <td>${acoes.join(' ') || '-'}</td>
+          <td><div class="table-actions">${acoes.join('') || '-'}</div></td>
         </tr>
       `;
     }).join('') || '<tr><td colspan="7">Sem partidas registradas.</td></tr>';
@@ -608,40 +607,6 @@ async function configurarSecretaria() {
         <td>${item.ip || '-'}</td>
       </tr>
     `).join('') || '<tr><td colspan="7">Nenhum acesso registrado até agora.</td></tr>';
-  }
-
-  function carregarPendentesSecretaria(lista = []) {
-    const tbody = document.querySelector('#pendentesSecretariaTable tbody');
-    if (!tbody) return;
-    tbody.innerHTML = lista.map((p) => `
-      <tr>
-        <td><strong>${p.desafiante_nome}</strong> x <strong>${p.desafiado_nome}</strong></td>
-        <td>${p.categoria_label || p.categoria || '-'}${p.status === 'aguardando_data' ? ' • Sem data definida' : ''}</td>
-        <td>${(p.data_desafio || '').replace('T', ' ') || '-'}</td>
-        <td><button type="button" class="btn-agendar-pendente" data-partida-id="${p.id}" data-desafiante="${p.desafiante}" data-desafiado="${p.desafiado}" data-status="${p.status || ''}">${p.status === 'aguardando_data' ? 'Definir data deste jogo' : 'Agendar este jogo'}</button></td>
-      </tr>
-    `).join('') || '<tr><td colspan="4">Sem desafios pendentes.</td></tr>';
-
-    tbody.querySelectorAll('.btn-agendar-pendente').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const partida = lista.find((item) => item.id === btn.dataset.partidaId) || {
-          id: btn.dataset.partidaId,
-          desafiante: btn.dataset.desafiante,
-          desafiado: btn.dataset.desafiado,
-          status: btn.dataset.status || '',
-        };
-        carregarPartidaNoFormulario(partida, 'pendente');
-        const statusAtual = btn.dataset.status;
-        setMsg(
-          'msgPendentesSecretaria',
-          statusAtual === 'aguardando_data'
-            ? 'Jogo sem data carregado no formulário. Defina data, horário e quadra para concluir o agendamento.'
-            : 'Desafio carregado no formulário. Defina data, horário e quadra para confirmar.',
-          true,
-        );
-        document.getElementById('formAgendar')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      });
-    });
   }
 
   const formAgendar = document.getElementById('formAgendar');

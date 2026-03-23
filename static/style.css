@@ -554,6 +554,39 @@ button:hover {
   background: linear-gradient(135deg, #3f80bc 0%, #2b6497 100%);
 }
 
+.btn-reverter-wo,
+.btn-remarcar-partida,
+.btn-reativar-desconsiderada {
+  width: auto;
+  margin-top: 0;
+  padding: 0.32rem 0.56rem;
+  font-size: 0.78rem;
+  line-height: 1.15;
+  border-radius: 10px;
+}
+
+.btn-remarcar-partida,
+.btn-reativar-desconsiderada {
+  border-color: #2e6aa0;
+  background: linear-gradient(135deg, #3f80bc 0%, #2b6497 100%);
+}
+
+.btn-reverter-wo {
+  border-color: #2e6aa0;
+  background: linear-gradient(135deg, #2d75ad 0%, #1d5f92 100%);
+}
+
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.32rem;
+  align-items: center;
+}
+
+.table-actions button {
+  min-width: 86px;
+}
+
 .btn-apagar-resultado {
   width: auto;
   margin-top: 0;
