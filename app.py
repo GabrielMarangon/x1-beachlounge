@@ -374,6 +374,11 @@ def _enriquecer_partida(partida: Dict[str, Any], atletas_map: Dict[str, Dict[str
     p['quadra_nome'] = q.get('nome', p.get('quadra'))
     p['categoria_label'] = RANKING_ROTULOS.get(p.get('categoria'), p.get('categoria'))
     p['status_exibicao'] = _rotulo_status_partida(p)
+    p['resultado_reversivel'] = bool(
+        p.get('status') in {'finalizada', 'realizada'}
+        and isinstance(p.get('snapshot_pre_resultado'), dict)
+        and p.get('snapshot_pre_resultado')
+    )
     return p
 
 
@@ -1131,7 +1136,10 @@ def create_app() -> Flask:
         if not isinstance(snapshot, dict) or not snapshot:
             return jsonify({
                 'ok': False,
-                'mensagem': 'Não foi possível reverter automaticamente este resultado (snapshot ausente).',
+                'mensagem': (
+                    'Este resultado não pode ser revertido automaticamente porque foi salvo sem snapshot histórico. '
+                    'Para esse caso legado, o ajuste precisa ser feito manualmente pela secretaria.'
+                ),
             }), 400
 
         atletas_map = indice_por_id(data['atletas'])
