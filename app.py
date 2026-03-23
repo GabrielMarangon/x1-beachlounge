@@ -26,6 +26,7 @@ from ranking_logic import (
     aplicar_wo_automatico_partidas_vencidas,
     atualizar_ranking_apos_resultado,
 )
+from resultado_logic import reverter_resultado_com_snapshot
 from regras_ranking import (
     listar_desafiantes_abaixo,
     listar_desafios_possiveis,
@@ -1129,45 +1130,13 @@ def create_app() -> Flask:
         if not partida:
             return jsonify({'ok': False, 'mensagem': 'Partida não encontrada.'}), 404
 
-        if partida.get('status') not in {'finalizada', 'realizada'}:
-            return jsonify({'ok': False, 'mensagem': 'Somente partidas com resultado lançado podem ser apagadas.'}), 400
-
-        snapshot = partida.get('snapshot_pre_resultado')
-        if not isinstance(snapshot, dict) or not snapshot:
-            return jsonify({
-                'ok': False,
-                'mensagem': (
-                    'Este resultado não pode ser revertido automaticamente porque foi salvo sem snapshot histórico. '
-                    'Para esse caso legado, o ajuste precisa ser feito manualmente pela secretaria.'
-                ),
-            }), 400
-
-        atletas_map = indice_por_id(data['atletas'])
-        for atleta_id, estado in snapshot.items():
-            atleta = atletas_map.get(atleta_id)
-            if not atleta:
-                continue
-            atleta['posicao'] = estado.get('posicao')
-            atleta['wo_consecutivos'] = estado.get('wo_consecutivos', 0)
-            atleta['ultimo_jogo'] = estado.get('ultimo_jogo')
-            atleta['ultimo_desafio'] = estado.get('ultimo_desafio')
-            atleta['bloqueado_ate'] = estado.get('bloqueado_ate')
-            atleta['observacoes'] = estado.get('observacoes', '')
-
-        normalizar_posicoes_ranking(data['atletas'], partida.get('categoria'))
-
-        partida['status'] = partida.get('status_antes_resultado', 'marcada')
-        partida['resultado'] = None
-        partida['vencedor'] = None
-        partida['wo'] = False
-        partida['data_registro_resultado'] = None
-        partida['resultado_apagado_em'] = agora_brasilia().isoformat(timespec='minutes')
-        partida.pop('snapshot_pre_resultado', None)
-        partida.pop('status_antes_resultado', None)
+        ok, msg = reverter_resultado_com_snapshot(partida, data['atletas'])
+        if not ok:
+            return jsonify({'ok': False, 'mensagem': msg}), 400
 
         _save_atletas(data['atletas'])
         _save_partidas(data['partidas'])
-        return jsonify({'ok': True, 'mensagem': 'Resultado apagado e ranking revertido com sucesso.', 'partida': partida})
+        return jsonify({'ok': True, 'mensagem': msg, 'partida': partida})
 
     @app.route('/api/secretaria/partidas/<partida_id>/reativar-desconsiderada', methods=['POST'])
     def api_secretaria_reativar_desconsiderada(partida_id: str):
