@@ -201,14 +201,18 @@ async function carregarAgenda() {
   }).join('');
 }
 
-async function excluirPartida(partidaId) {
+async function excluirPartida(partidaId, onDone = null) {
   if (!partidaId) return;
   const ok = window.confirm('Deseja excluir esta partida da agenda?');
   if (!ok) return;
   try {
     const out = await api(`/api/partidas/${partidaId}`, { method: 'DELETE' });
     alert(out.mensagem || 'Partida cancelada.');
-    await carregarPartidas();
+    if (typeof onDone === 'function') {
+      await onDone();
+    } else {
+      await carregarPartidas();
+    }
     if (document.body.dataset.page === 'agenda') {
       await carregarAgenda();
     }
@@ -266,23 +270,9 @@ async function carregarPartidas() {
       <td><strong>${p.desafiante_nome}</strong> x <strong>${p.desafiado_nome}</strong></td>
       <td>${p.categoria_label}</td>
       <td>${badge(p)}</td>
-      <td>
-        ${(p.status === 'pendente_agendamento' || p.status === 'aguardando_data' || p.status === 'marcada' || p.status === 'em_andamento')
-          ? `<button type="button" class="btn-excluir-partida" data-partida-id="${p.id}">Excluir</button>`
-          : (p.resultado_reversivel && p.status === 'finalizada' && p.wo && p.resultado === 'W.O. por prazo expirado')
-            ? `<button type="button" class="btn-reverter-wo" data-partida-id="${p.id}">Reverter W.O.</button>`
-          : '-'
-        }
-      </td>
+      <td>-</td>
     </tr>
   `).join('') || '<tr><td colspan="7">Nenhuma partida encontrada para os filtros selecionados.</td></tr>';
-
-  tbody.querySelectorAll('.btn-excluir-partida').forEach((btn) => {
-    btn.addEventListener('click', () => excluirPartida(btn.dataset.partidaId));
-  });
-  tbody.querySelectorAll('.btn-reverter-wo').forEach((btn) => {
-    btn.addEventListener('click', () => apagarResultado(btn.dataset.partidaId, carregarPartidas));
-  });
 }
 
 async function apagarResultado(partidaId, onDone) {
@@ -459,7 +449,120 @@ async function configurarSecretaria() {
     preencherSelectsSecretaria(painel.atletas || [], painel.partidas_marcadas || []);
     carregarPendentesSecretaria(painel.pendentes || []);
     carregarDesconsideradasSecretaria(painel.desconsideradas || []);
+    carregarTodasPartidasSecretaria(painel.todas_partidas || []);
     carregarAcessosSecretaria(painel.acessos || []);
+  }
+
+  function badgePartidaSecretaria(partida) {
+    const status = partida.status || '';
+    const rotulo = partida.status_exibicao || status || '-';
+    if (rotulo === 'W.O. automático por prazo expirado') return `<span class="status-chip status-vermelho">${rotulo}</span>`;
+    if (status === 'marcada') return '<span class="status-chip status-verde">Marcada</span>';
+    if (status === 'pendente_agendamento') return '<span class="status-chip status-amarelo">Pendente de agendamento</span>';
+    if (status === 'aguardando_data') return '<span class="status-chip status-amarelo">Sem data definida</span>';
+    if (status === 'finalizada') return `<span class="status-chip status-cinza">${rotulo}</span>`;
+    if (status === 'desconsiderada') return `<span class="status-chip status-vermelho">${rotulo}</span>`;
+    if (status === 'cancelada') return `<span class="status-chip status-amarelo">${rotulo}</span>`;
+    return `<span class="status-chip status-amarelo">${rotulo}</span>`;
+  }
+
+  function limparContextoFormularioAgendamento() {
+    const pendenteId = document.getElementById('agendarPartidaPendenteId');
+    const remarcacaoId = document.getElementById('agendarPartidaRemarcacaoId');
+    if (pendenteId) pendenteId.value = '';
+    if (remarcacaoId) remarcacaoId.value = '';
+  }
+
+  function carregarPartidaNoFormulario(partida, modo = 'agendar') {
+    const hiddenPendente = document.getElementById('agendarPartidaPendenteId');
+    const hiddenRemarcacao = document.getElementById('agendarPartidaRemarcacaoId');
+    const sDesafiante = document.getElementById('agendarDesafiante');
+    const sDesafiado = document.getElementById('agendarDesafiado');
+    const semData = document.getElementById('agendarSemData');
+    const dataCampo = document.getElementById('agendarData');
+    const horarioCampo = document.getElementById('agendarHorario');
+    const quadraCampo = document.getElementById('agendarQuadra');
+    const tipoCampo = document.getElementById('agendarTipo');
+
+    limparContextoFormularioAgendamento();
+    if (modo === 'pendente' && hiddenPendente) hiddenPendente.value = partida.id || '';
+    if (modo === 'remarcar' && hiddenRemarcacao) hiddenRemarcacao.value = partida.id || '';
+    if (sDesafiante) sDesafiante.value = partida.desafiante || '';
+    if (sDesafiado) sDesafiado.value = partida.desafiado || '';
+    if (semData) semData.checked = partida.status === 'aguardando_data';
+    if (dataCampo) dataCampo.value = partida.data || '';
+    if (horarioCampo) horarioCampo.value = partida.horario || '09:00';
+    if (quadraCampo) quadraCampo.value = partida.quadra || 'quadra_1';
+    if (tipoCampo) tipoCampo.value = partida.tipo_confronto || 'ranking_x1';
+
+    [dataCampo, horarioCampo, quadraCampo].forEach((campo) => {
+      if (!campo) return;
+      campo.disabled = !!semData?.checked;
+    });
+    document.getElementById('formAgendar')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function carregarTodasPartidasSecretaria(lista = []) {
+    const tbody = document.querySelector('#partidasSecretariaTable tbody');
+    if (!tbody) return;
+    tbody.innerHTML = lista.map((p) => {
+      const acoes = [];
+      if (p.status === 'pendente_agendamento' || p.status === 'aguardando_data') {
+        acoes.push(`<button type="button" class="btn-agendar-pendente" data-partida-id="${p.id}">Agendar</button>`);
+      }
+      if (p.status === 'marcada') {
+        acoes.push(`<button type="button" class="btn-remarcar-partida" data-partida-id="${p.id}">Remarcar</button>`);
+      }
+      if (p.status === 'pendente_agendamento' || p.status === 'aguardando_data' || p.status === 'marcada' || p.status === 'em_andamento') {
+        acoes.push(`<button type="button" class="btn-excluir-partida" data-partida-id="${p.id}">Excluir</button>`);
+      }
+      if (p.resultado_reversivel && p.status === 'finalizada' && p.wo && p.resultado === 'W.O. por prazo expirado') {
+        acoes.push(`<button type="button" class="btn-reverter-wo" data-partida-id="${p.id}">Reverter W.O.</button>`);
+      }
+      return `
+        <tr>
+          <td>${p.data || '-'}</td>
+          <td>${p.horario || '-'}</td>
+          <td>${p.quadra_nome || '-'}</td>
+          <td><strong>${p.desafiante_nome}</strong> x <strong>${p.desafiado_nome}</strong></td>
+          <td>${p.categoria_label || p.categoria || '-'}</td>
+          <td>${badgePartidaSecretaria(p)}</td>
+          <td>${acoes.join(' ') || '-'}</td>
+        </tr>
+      `;
+    }).join('') || '<tr><td colspan="7">Sem partidas registradas.</td></tr>';
+
+    tbody.querySelectorAll('.btn-agendar-pendente').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const partida = lista.find((item) => item.id === btn.dataset.partidaId);
+        if (!partida) return;
+        carregarPartidaNoFormulario(partida, 'pendente');
+        setMsg(
+          'msgTodasPartidasSecretaria',
+          partida.status === 'aguardando_data'
+            ? 'Jogo sem data carregado no formulário. Defina data, horário e quadra para concluir o agendamento.'
+            : 'Desafio carregado no formulário. Defina data, horário e quadra para confirmar.',
+          true,
+        );
+      });
+    });
+
+    tbody.querySelectorAll('.btn-remarcar-partida').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const partida = lista.find((item) => item.id === btn.dataset.partidaId);
+        if (!partida) return;
+        carregarPartidaNoFormulario(partida, 'remarcar');
+        setMsg('msgTodasPartidasSecretaria', 'Partida marcada carregada no formulário para remarcação.', true);
+      });
+    });
+
+    tbody.querySelectorAll('.btn-excluir-partida').forEach((btn) => {
+      btn.addEventListener('click', () => excluirPartida(btn.dataset.partidaId, atualizarPainelSecretaria));
+    });
+
+    tbody.querySelectorAll('.btn-reverter-wo').forEach((btn) => {
+      btn.addEventListener('click', () => apagarResultado(btn.dataset.partidaId, atualizarPainelSecretaria));
+    });
   }
 
   function carregarDesconsideradasSecretaria(lista = []) {
@@ -521,23 +624,13 @@ async function configurarSecretaria() {
 
     tbody.querySelectorAll('.btn-agendar-pendente').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const partidaId = btn.dataset.partidaId;
-        const desafiante = btn.dataset.desafiante;
-        const desafiado = btn.dataset.desafiado;
-        const hidden = document.getElementById('agendarPartidaPendenteId');
-        const sDesafiante = document.getElementById('agendarDesafiante');
-        const sDesafiado = document.getElementById('agendarDesafiado');
-        const semData = document.getElementById('agendarSemData');
-        const dataCampo = document.getElementById('agendarData');
-        const horarioCampo = document.getElementById('agendarHorario');
-        const quadraCampo = document.getElementById('agendarQuadra');
-        if (hidden) hidden.value = partidaId;
-        if (sDesafiante) sDesafiante.value = desafiante;
-        if (sDesafiado) sDesafiado.value = desafiado;
-        if (semData) semData.checked = false;
-        if (dataCampo) dataCampo.disabled = false;
-        if (horarioCampo) horarioCampo.disabled = false;
-        if (quadraCampo) quadraCampo.disabled = false;
+        const partida = lista.find((item) => item.id === btn.dataset.partidaId) || {
+          id: btn.dataset.partidaId,
+          desafiante: btn.dataset.desafiante,
+          desafiado: btn.dataset.desafiado,
+          status: btn.dataset.status || '',
+        };
+        carregarPartidaNoFormulario(partida, 'pendente');
         const statusAtual = btn.dataset.status;
         setMsg(
           'msgPendentesSecretaria',
@@ -576,6 +669,7 @@ async function configurarSecretaria() {
       e.preventDefault();
       try {
         const partidaPendenteId = document.getElementById('agendarPartidaPendenteId')?.value || '';
+        const partidaRemarcacaoId = document.getElementById('agendarPartidaRemarcacaoId')?.value || '';
         const semDataDefinida = !!document.getElementById('agendarSemData')?.checked;
         const payload = {
           desafiante: document.getElementById('agendarDesafiante').value,
@@ -587,7 +681,9 @@ async function configurarSecretaria() {
           status: semDataDefinida ? 'aguardando_data' : 'marcada',
           sem_data_definida: semDataDefinida,
         };
-        const endpoint = partidaPendenteId ? '/api/secretaria/agendar-pendente' : '/api/agendar';
+        const endpoint = partidaRemarcacaoId
+          ? `/api/secretaria/partidas/${partidaRemarcacaoId}/remarcar`
+          : (partidaPendenteId ? '/api/secretaria/agendar-pendente' : '/api/agendar');
         const body = partidaPendenteId ? { ...payload, partida_id: partidaPendenteId } : payload;
         const out = await api(endpoint, {
           method: 'POST',
@@ -595,8 +691,7 @@ async function configurarSecretaria() {
           body: JSON.stringify(body),
         });
         setMsg('msgAgendar', out.mensagem, true);
-        const hidden = document.getElementById('agendarPartidaPendenteId');
-        if (hidden) hidden.value = '';
+        limparContextoFormularioAgendamento();
         if (semDataInput) semDataInput.checked = false;
         atualizarCamposAgendamento();
         await atualizarPainelSecretaria();

@@ -432,6 +432,13 @@ def _montar_painel_secretaria(data: Dict[str, Any]) -> Dict[str, Any]:
     ]
     partidas_marcadas = ordenar_partidas_por_data(partidas_marcadas)
 
+    todas_partidas = [
+        _enriquecer_partida(p, atletas_map, quadras_map)
+        for p in data['partidas']
+        if p.get('status') != 'cancelada'
+    ]
+    todas_partidas = ordenar_partidas_por_data(todas_partidas)
+
     acessos = sorted(_load_access_logs(), key=lambda item: item.get('timestamp', ''), reverse=True)[:120]
 
     return {
@@ -439,6 +446,7 @@ def _montar_painel_secretaria(data: Dict[str, Any]) -> Dict[str, Any]:
         'pendentes': pendentes,
         'desconsideradas': desconsideradas,
         'partidas_marcadas': partidas_marcadas,
+        'todas_partidas': todas_partidas,
         'acessos': acessos,
     }
 
@@ -1032,6 +1040,59 @@ def create_app() -> Flask:
         partida['status'] = 'marcada'
         _save_partidas(data['partidas'])
         return jsonify({'ok': True, 'mensagem': 'Partida agendada com sucesso.', 'partida': partida})
+
+    @app.route('/api/secretaria/partidas/<partida_id>/remarcar', methods=['POST'])
+    def api_secretaria_remarcar_partida(partida_id: str):
+        _log_access('api_secretaria_remarcar_partida')
+        data = _load_all()
+        payload = request.get_json(silent=True) or {}
+
+        partida = next((p for p in data['partidas'] if p.get('id') == partida_id), None)
+        if not partida:
+            return jsonify({'ok': False, 'mensagem': 'Partida não encontrada.'}), 404
+        if partida.get('status') != 'marcada':
+            return jsonify({'ok': False, 'mensagem': 'Apenas partidas marcadas podem ser remarcadas.'}), 400
+
+        data_jogo = payload.get('data')
+        horario = payload.get('horario')
+        quadra = payload.get('quadra')
+        sem_data_definida = bool(payload.get('sem_data_definida')) or not data_jogo
+
+        if sem_data_definida:
+            partida['data'] = ''
+            partida['horario'] = ''
+            partida['quadra'] = ''
+            partida['tipo_confronto'] = payload.get('tipo_confronto', partida.get('tipo_confronto', 'ranking_x1'))
+            partida['status'] = 'aguardando_data'
+            _save_partidas(data['partidas'])
+            return jsonify({'ok': True, 'mensagem': 'Partida remarcada para sem data definida.', 'partida': partida})
+
+        horarios_validos = {h.get('hora') for h in data['horarios']}
+        if horario not in horarios_validos:
+            return jsonify({'ok': False, 'mensagem': f"Horário inválido. Use apenas: {', '.join(sorted(horarios_validos))}."}), 400
+
+        conflito_q, msg_q = verificar_conflito_quadras(data['partidas'], data_jogo, horario, quadra, partida_id_ignorar=partida_id)
+        if conflito_q:
+            return jsonify({'ok': False, 'mensagem': msg_q}), 400
+
+        desafiante_id = partida.get('desafiante')
+        desafiado_id = partida.get('desafiado')
+        conflito_d, msg_d = verificar_conflito_atleta(data['partidas'], data_jogo, horario, desafiante_id, partida_id_ignorar=partida_id)
+        if conflito_d:
+            return jsonify({'ok': False, 'mensagem': msg_d}), 400
+
+        conflito_r, msg_r = verificar_conflito_atleta(data['partidas'], data_jogo, horario, desafiado_id, partida_id_ignorar=partida_id)
+        if conflito_r:
+            return jsonify({'ok': False, 'mensagem': msg_r}), 400
+
+        partida['data'] = data_jogo
+        partida['horario'] = horario
+        partida['quadra'] = quadra
+        partida['tipo_confronto'] = payload.get('tipo_confronto', partida.get('tipo_confronto', 'ranking_x1'))
+        partida['status'] = 'marcada'
+        partida['remarcada_em'] = agora_brasilia().isoformat(timespec='minutes')
+        _save_partidas(data['partidas'])
+        return jsonify({'ok': True, 'mensagem': 'Partida remarcada com sucesso.', 'partida': partida})
 
     @app.route('/api/partidas/<partida_id>', methods=['DELETE'])
     def api_excluir_partida(partida_id: str):
