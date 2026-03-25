@@ -12,15 +12,15 @@
   <main class="container auth-container">
     <section class="panel auth-panel">
       <h1>Identificação de acesso</h1>
-      <p class="hint">Antes de entrar no sistema, informe quem está acessando. Isso permite acompanhar quem testou o programa.</p>
+      <p class="hint">Atletas devem entrar com o nome do ranking e o telefone cadastrado. Visitantes podem apenas se identificar para navegação geral.</p>
       {% if erro %}<p class="msg msg-erro">{{ erro }}</p>{% endif %}
       <form method="post" action="/identificacao" class="form-grid">
         <input type="hidden" name="next_url" value="{{ next_url or '/' }}">
         <label>Nome
-          <input type="text" name="nome" required placeholder="Seu nome">
+          <input type="text" name="nome" required placeholder="Nome do atleta ou visitante">
         </label>
         <label>Contato
-          <input type="text" name="contato" placeholder="WhatsApp ou e-mail">
+          <input type="text" name="contato" placeholder="Telefone cadastrado do atleta ou contato do visitante">
         </label>
         <button type="submit">Entrar no sistema</button>
       </form>

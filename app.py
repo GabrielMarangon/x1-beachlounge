@@ -77,6 +77,76 @@ RANKING_ROTULOS = {
     'feminina_iniciantes': 'Feminina Iniciantes',
     'infantil_a': 'Infantil A',
 }
+ATHLETE_PHONE_FIXTURES = {
+    ('masculino_principal', 'OTAVIO SARI'): '5599091410',
+    ('masculino_principal', 'GUSTAVO ROCHA'): '5599619899',
+    ('masculino_principal', 'JOSÉ GUNSKI'): '5596045550',
+    ('masculino_principal', 'OCTACILIO'): '5591649297',
+    ('masculino_principal', 'GUILHERME CASTILHOS'): '5599010178',
+    ('masculino_principal', 'OTAVIO FLORES'): '5599687999',
+    ('masculino_principal', 'FABRÍCIO ZIMMERMANN'): '5599503655',
+    ('masculino_principal', 'GUI FRANCO'): '5599588512',
+    ('masculino_principal', 'OSCAR'): '5596185696',
+    ('masculino_principal', 'NENEU'): '5581332823',
+    ('masculino_principal', 'AMIR SAMHAN'): '5599475545',
+    ('masculino_principal', 'GABRIEL MARANGON'): '55996191617',
+    ('masculino_principal', 'NASSER AHAMED'): '5599254976',
+    ('masculino_principal', 'MARCIO CASTILHOS'): '5599369994',
+    ('masculino_principal', 'RICARDO ROSSATO'): '5596410160',
+    ('masculino_principal', 'FLAVINHO MACEDO'): '5599279731',
+    ('masculino_principal', 'ARTHUR SAMHAN'): '5596757309',
+    ('masculino_principal', 'LEANDRO DIAS'): '5599837170',
+    ('masculino_principal', 'EDUARDO VINADE'): '5599723770',
+    ('masculino_principal', 'DANI STURMER'): '5599850682',
+    ('masculino_principal', 'RODRIGO ROSSI'): '5599692056',
+    ('masculino_principal', 'JORGINHO'): '5599399113',
+    ('masculino_principal', 'JOAO GOULART'): '5599625253',
+    ('masculino_principal', 'LAURO RIETH'): '5599521592',
+    ('masculino_principal', 'ANDRE VINADE'): '5599843750',
+    ('masculino_principal', 'NAIRINHO'): '5596768576',
+    ('masculino_principal', 'EDUARDO CARDON'): '5184253289',
+    ('masculino_principal', 'MIMI'): '5599891623',
+    ('masculino_principal', 'ALEX GUARENTI'): '5596745489',
+    ('masculino_principal', 'RAFAELA CRESPO'): '5599557910',
+    ('masculino_principal', 'FABRICIO MOTTA'): '5596474227',
+    ('masculino_principal', 'VINICIUS'): '5599261929',
+    ('masculino_principal', 'DAIANE'): '5599928086',
+    ('masculino_principal', 'MICHELI'): '5596614892',
+    ('masculino_principal', 'ANTONIA'): '5599001572',
+    ('masculino_principal', 'PEDRO CRESPO'): '5599557910',
+    ('masculino_principal', 'BERNARDO KOCH'): '5596434377',
+    ('masculino_principal', 'MARCOS LAUXEN'): '5599356980',
+    ('masculino_principal', 'JEAN BISOGNO'): '5599188982',
+    ('masculino_principal', 'CARLOS AMORETTI'): '5581262065',
+    ('masculino_principal', 'MANOEL MACEDO'): '5597220353',
+    ('masculino_principal', 'RENATA CAGGIANI'): '5581188924',
+    ('masculino_principal', 'EDUARDO CALEFFI'): '5599647982',
+    ('masculino_principal', 'AFONSO'): '5596044405',
+    ('masculino_principal', 'EDUARDO VIELITZ'): '5584416940',
+    ('masculino_principal', 'MAURICIO SILVA'): '5597137275',
+    ('masculino_principal', 'CONRADO'): '5596881119',
+    ('masculino_principal', 'ISADORA'): '5596959689',
+    ('masculino_principal', 'JULIANA MATTOS'): '5599460142',
+    ('masculino_principal', 'GIUSEPPE CHIAPPETTA'): '5596494144',
+    ('masculino_principal', 'PAULO DINIZ'): '5591541381',
+    ('feminina_iniciantes', 'RAFAELA CRESPO'): '5599557910',
+    ('feminina_iniciantes', 'DAIANE'): '5599928086',
+    ('feminina_iniciantes', 'MICHELI'): '5596614892',
+    ('feminina_iniciantes', 'RENATA CAGGIANI'): '5581188924',
+    ('feminina_iniciantes', 'ISADORA'): '5596959689',
+    ('feminina_iniciantes', 'CLARISSA JORGE'): '5596871696',
+    ('feminina_iniciantes', 'ANA POSSEBON'): '5599259193',
+    ('feminina_iniciantes', 'JULIANA MATTOS'): '5599460142',
+    ('infantil_a', 'PEDRO CRESPO'): '5599557910',
+    ('infantil_a', 'BENJAMIN'): '5592273441',
+    ('infantil_a', 'MANOEL MACEDO'): '5597220353',
+    ('infantil_a', 'JOAQUIN SOUZA'): '5596474227',
+    ('infantil_a', 'JOAQUIN ROSSATO'): '5596410160',
+    ('infantil_a', 'CONRADO'): '5596881119',
+    ('infantil_a', 'FRANCISCO VINADE'): '5599723770',
+    ('infantil_a', 'NICOLAS'): '5184253289',
+    ('infantil_a', 'YASSER AHAMED'): '5599254976',
+}
 SECRETARIA_USERNAME = os.getenv('SECRETARIA_USERNAME', '').strip()
 SECRETARIA_PASSWORD_HASH = os.getenv('SECRETARIA_PASSWORD_HASH', '').strip()
 SECRETARIA_PASSWORD = os.getenv('SECRETARIA_PASSWORD', '').strip()
@@ -90,6 +160,8 @@ def _load_all() -> Dict[str, Any]:
         'horarios': STORE.load_dataset('horarios'),
         'partidas': STORE.load_dataset('partidas'),
     }
+    if _backfill_known_athlete_phones(data['atletas']):
+        _save_atletas(data['atletas'])
     _aplicar_wo_automatico_por_prazo(data)
     normalizar_posicoes_ranking(data['atletas'])
     return data
@@ -172,6 +244,111 @@ def _save_partidas(partidas: List[Dict[str, Any]]) -> None:
     STORE.save_dataset('partidas', partidas)
 
 
+def _normalize_identity_text(value: str | None) -> str:
+    texto = unicodedata.normalize('NFKD', (value or '').strip())
+    texto = ''.join(ch for ch in texto if not unicodedata.combining(ch))
+    return re.sub(r'\s+', ' ', texto).strip().casefold()
+
+
+def _normalize_phone(value: str | None) -> str:
+    return re.sub(r'\D+', '', value or '')
+
+
+KNOWN_ATHLETE_PHONES = {
+    (ranking, _normalize_identity_text(nome)): _normalize_phone(telefone)
+    for (ranking, nome), telefone in ATHLETE_PHONE_FIXTURES.items()
+}
+
+
+def _backfill_known_athlete_phones(atletas: List[Dict[str, Any]]) -> bool:
+    changed = False
+    for atleta in atletas:
+        key = (atleta.get('ranking'), _normalize_identity_text(atleta.get('nome')))
+        telefone_conhecido = KNOWN_ATHLETE_PHONES.get(key)
+        if not telefone_conhecido:
+            continue
+        telefone_atual = _normalize_phone(atleta.get('telefone'))
+        if telefone_atual == telefone_conhecido:
+            continue
+        if telefone_atual:
+            continue
+        atleta['telefone'] = telefone_conhecido
+        changed = True
+    return changed
+
+
+def _athlete_public_payload(atleta: Dict[str, Any]) -> Dict[str, Any]:
+    publico = dict(atleta)
+    publico.pop('telefone', None)
+    return publico
+
+
+def _clear_athlete_session() -> None:
+    session.pop('atleta_autenticado', None)
+    session.pop('atleta_nome', None)
+    session.pop('atleta_ids', None)
+
+
+def _bind_athlete_session(atletas: List[Dict[str, Any]]) -> None:
+    ids = sorted({atleta.get('id') for atleta in atletas if atleta.get('id')})
+    if not ids:
+        _clear_athlete_session()
+        return
+    session['atleta_autenticado'] = True
+    session['atleta_nome'] = atletas[0].get('nome', '')
+    session['atleta_ids'] = ids
+
+
+def _session_athlete_ids() -> set[str]:
+    ids = session.get('atleta_ids') or []
+    return {item for item in ids if isinstance(item, str) and item}
+
+
+def _session_user_type() -> str:
+    if session.get('secretaria_autorizada'):
+        return 'secretaria'
+    if session.get('atleta_autenticado') and _session_athlete_ids():
+        return 'atleta'
+    return 'visitante'
+
+
+def _find_athletes_by_identity(nome: str, contato: str, atletas: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    nome_normalizado = _normalize_identity_text(nome)
+    contato_normalizado = _normalize_phone(contato)
+    if not nome_normalizado or not contato_normalizado:
+        return []
+    return [
+        atleta
+        for atleta in atletas
+        if _normalize_identity_text(atleta.get('nome')) == nome_normalizado
+        and _normalize_phone(atleta.get('telefone')) == contato_normalizado
+        and not atleta.get('retirado')
+    ]
+
+
+def _name_matches_registered_athlete(nome: str, atletas: List[Dict[str, Any]]) -> bool:
+    nome_normalizado = _normalize_identity_text(nome)
+    if not nome_normalizado:
+        return False
+    return any(
+        _normalize_identity_text(atleta.get('nome')) == nome_normalizado and not atleta.get('retirado')
+        for atleta in atletas
+    )
+
+
+def _actor_can_manage_atleta(atleta_id: str) -> bool:
+    if session.get('secretaria_autorizada'):
+        return True
+    return atleta_id in _session_athlete_ids()
+
+
+def _actor_can_manage_partida(partida: Dict[str, Any]) -> bool:
+    if session.get('secretaria_autorizada'):
+        return True
+    ids = _session_athlete_ids()
+    return bool(ids.intersection({partida.get('desafiante'), partida.get('desafiado')}))
+
+
 def _load_access_logs() -> List[Dict[str, Any]]:
     try:
         logs = STORE.load_dataset('access_logs')
@@ -193,9 +370,9 @@ def _client_ip() -> str:
 
 def _visitor_identity() -> Dict[str, str]:
     return {
-        'nome': session.get('visitante_nome', '').strip(),
+        'nome': (session.get('atleta_nome') if _session_user_type() == 'atleta' else session.get('visitante_nome', '')).strip(),
         'contato': session.get('visitante_contato', '').strip(),
-        'tipo': 'secretaria' if session.get('secretaria_autorizada') else 'visitante',
+        'tipo': _session_user_type(),
     }
 
 
@@ -521,6 +698,26 @@ def create_app() -> Flask:
         if not nome:
             return render_template('identificacao.html', erro='Informe seu nome para acessar.', next_url=next_url), 400
 
+        data = _load_all()
+        atletas = data['atletas']
+        if _name_matches_registered_athlete(nome, atletas):
+            if not _normalize_phone(contato):
+                return render_template(
+                    'identificacao.html',
+                    erro='Para acessar como atleta, informe o telefone cadastrado no ranking.',
+                    next_url=next_url,
+                ), 400
+            atletas_vinculados = _find_athletes_by_identity(nome, contato, atletas)
+            if not atletas_vinculados:
+                return render_template(
+                    'identificacao.html',
+                    erro='Nome e telefone não conferem com o cadastro do atleta. Se precisar, peça atualização para a secretaria.',
+                    next_url=next_url,
+                ), 401
+            _bind_athlete_session(atletas_vinculados)
+        else:
+            _clear_athlete_session()
+
         session['visitante_nome'] = nome
         session['visitante_contato'] = contato
         _log_access('identificacao')
@@ -605,6 +802,26 @@ def create_app() -> Flask:
     def desafio_page():
         return render_template('desafio.html')
 
+    @app.route('/api/sessao')
+    def api_sessao():
+        data = _load_all()
+        ids = _session_athlete_ids()
+        atletas_vinculados = [
+            _athlete_public_payload(atleta)
+            for atleta in data['atletas']
+            if atleta.get('id') in ids
+        ]
+        return jsonify({
+            'ok': True,
+            'tipo_usuario': _session_user_type(),
+            'secretaria_autorizada': bool(session.get('secretaria_autorizada')),
+            'atleta_autenticado': bool(session.get('atleta_autenticado') and ids),
+            'visitante_nome': session.get('visitante_nome', ''),
+            'visitante_contato': session.get('visitante_contato', ''),
+            'atleta_ids': sorted(ids),
+            'atletas_vinculados': atletas_vinculados,
+        })
+
     @app.route('/health')
     def health():
         return {'status': 'ok'}, 200
@@ -630,7 +847,7 @@ def create_app() -> Flask:
     def api_ranking():
         data = _load_all()
         ranking = request.args.get('ranking')
-        atletas = [atleta.copy() for atleta in data['atletas'] if not atleta.get('retirado')]
+        atletas = [_athlete_public_payload(atleta) for atleta in data['atletas'] if not atleta.get('retirado')]
 
         if ranking:
             atletas = [a for a in atletas if a.get('ranking') == ranking]
@@ -643,7 +860,7 @@ def create_app() -> Flask:
     @app.route('/api/atletas')
     def api_atletas():
         data = _load_all()
-        atletas = [atleta.copy() for atleta in data['atletas']]
+        atletas = [_athlete_public_payload(atleta) for atleta in data['atletas']]
         for a in atletas:
             a['status_visual'] = formatar_status(a)
         return jsonify(atletas)
@@ -666,7 +883,7 @@ def create_app() -> Flask:
         stats = _estatisticas_atleta(atleta_id, partidas)
 
         return jsonify({
-            'atleta': atleta,
+            'atleta': _athlete_public_payload(atleta),
             'status_visual': formatar_status(atleta),
             'liberado_para_jogar': ok,
             'motivo_status': msg,
@@ -681,6 +898,8 @@ def create_app() -> Flask:
 
     @app.route('/api/desafios/<atleta_id>')
     def api_desafios(atleta_id: str):
+        if not _actor_can_manage_atleta(atleta_id):
+            return jsonify({'ok': False, 'mensagem': 'Você só pode acessar os desafios do seu próprio perfil.'}), 403
         data = _load_all()
         atletas = data['atletas']
         partidas = data['partidas']
@@ -727,6 +946,8 @@ def create_app() -> Flask:
 
     @app.route('/api/partidas-atleta/<atleta_id>')
     def api_partidas_atleta(atleta_id: str):
+        if not _actor_can_manage_atleta(atleta_id):
+            return jsonify({'ok': False, 'mensagem': 'Você só pode acessar as partidas do seu próprio perfil.'}), 403
         data = _load_all()
         atleta = next((a for a in data['atletas'] if a.get('id') == atleta_id), None)
         if not atleta:
@@ -743,7 +964,7 @@ def create_app() -> Flask:
 
         return jsonify({
             'ok': True,
-            'atleta': atleta,
+            'atleta': _athlete_public_payload(atleta),
             'lancaveis': lancaveis,
             'historico': historico,
             'estatisticas': _estatisticas_atleta(atleta_id, data['partidas']),
@@ -797,11 +1018,14 @@ def create_app() -> Flask:
         payload = request.get_json(silent=True) or {}
 
         nome = (payload.get('nome') or '').strip()
+        telefone = _normalize_phone(payload.get('telefone'))
         ranking = (payload.get('ranking') or '').strip()
         if not nome:
             return jsonify({'ok': False, 'mensagem': 'Informe o nome do atleta.'}), 400
         if ranking not in RANKING_ROTULOS:
             return jsonify({'ok': False, 'mensagem': 'Categoria de ranking inválida.'}), 400
+        if not telefone:
+            return jsonify({'ok': False, 'mensagem': 'Informe o telefone do atleta para liberar o acesso ao sistema.'}), 400
 
         try:
             posicao = int(payload.get('posicao'))
@@ -840,6 +1064,7 @@ def create_app() -> Flask:
             'ativo': True,
             'retirado': False,
             'neutro': False,
+            'telefone': telefone,
             'wo_consecutivos': 0,
             'status_financeiro': payload.get('status_financeiro') or 'em dia',
             'bloqueio_secretaria': False,
@@ -941,6 +1166,8 @@ def create_app() -> Flask:
         desafiado_id = payload.get('desafiado_id')
         if not desafiante_id or not desafiado_id:
             return jsonify({'ok': False, 'mensagem': 'Desafiante e desafiado são obrigatórios.'}), 400
+        if not session.get('secretaria_autorizada') and not _actor_can_manage_atleta(desafiante_id):
+            return jsonify({'ok': False, 'mensagem': 'Você só pode gerar desafio em nome do seu próprio perfil.'}), 403
 
         atletas = data['atletas']
         desafiante = next((a for a in atletas if a.get('id') == desafiante_id), None)
@@ -1133,6 +1360,8 @@ def create_app() -> Flask:
         partida = next((p for p in data['partidas'] if p.get('id') == payload.get('partida_id')), None)
         if not partida:
             return jsonify({'ok': False, 'mensagem': 'Partida não encontrada.'}), 404
+        if not _actor_can_manage_partida(partida):
+            return jsonify({'ok': False, 'mensagem': 'Você só pode lançar resultado de partidas em que esteja envolvido.'}), 403
 
         if partida.get('status') not in {'marcada', 'em_andamento'}:
             return jsonify({'ok': False, 'mensagem': 'Partida não está disponível para registro.'}), 400
@@ -1190,6 +1419,8 @@ def create_app() -> Flask:
         partida = next((p for p in data['partidas'] if p.get('id') == partida_id), None)
         if not partida:
             return jsonify({'ok': False, 'mensagem': 'Partida não encontrada.'}), 404
+        if not _actor_can_manage_partida(partida):
+            return jsonify({'ok': False, 'mensagem': 'Você só pode apagar resultados de partidas em que esteja envolvido.'}), 403
 
         ok, msg = reverter_resultado_com_snapshot(partida, data['atletas'])
         if not ok:

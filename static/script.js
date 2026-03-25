@@ -44,6 +44,7 @@ let partidasLancaveisAtleta = [];
 let nomeAtletaSelecionadoDesafio = '';
 let rankingAtualCache = [];
 let atletasCache = [];
+let sessaoCache = null;
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -52,6 +53,40 @@ function escapeHtml(value) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+}
+
+async function carregarSessao() {
+  if (sessaoCache) return sessaoCache;
+  sessaoCache = await api('/api/sessao');
+  return sessaoCache;
+}
+
+function descreverPerfisSessao(atletas = []) {
+  if (!atletas.length) return '';
+  return atletas
+    .map((atleta) => `${atleta.nome} (${atleta.categoria} - #${atleta.posicao})`)
+    .join(' | ');
+}
+
+function preencherResumoSessao(prefixo, sessao) {
+  const resumo = document.getElementById(`${prefixo}Resumo`);
+  const perfis = document.getElementById(`${prefixo}Perfis`);
+  if (!resumo || !perfis) return;
+
+  if (sessao.secretaria_autorizada) {
+    resumo.textContent = 'Sessão da secretaria ativa. Esta área segue com acesso administrativo completo.';
+    perfis.textContent = '';
+    return;
+  }
+
+  if (sessao.atleta_autenticado && sessao.atletas_vinculados?.length) {
+    resumo.textContent = `Sessão do atleta: ${sessao.atletas_vinculados[0].nome}. As ações desta página ficam restritas aos seus próprios perfis.`;
+    perfis.textContent = `Perfis vinculados: ${descreverPerfisSessao(sessao.atletas_vinculados)}`;
+    return;
+  }
+
+  resumo.textContent = 'Sessão sem vínculo de atleta. Você pode visualizar o sistema, mas não realizar ações esportivas nesta página.';
+  perfis.textContent = '';
 }
 
 function statusDesafioVisual(item) {
@@ -396,6 +431,14 @@ function preencherEdicaoAtleta() {
   nomeInput.value = atleta?.nome || '';
 }
 
+function montarOpcoesAtletas(atletas) {
+  return atletas
+    .filter((a) => !a.retirado)
+    .sort((a, b) => a.nome.localeCompare(b.nome))
+    .map((a) => `<option value="${a.id}">${a.nome} (${a.categoria} - #${a.posicao})</option>`)
+    .join('');
+}
+
 function atualizarOpcoesVencedorSecretaria(partidasBase = null) {
   const partidaSel = document.getElementById('resultadoPartida');
   const vencedorSel = document.getElementById('resultadoVencedor');
@@ -728,6 +771,7 @@ async function configurarSecretaria() {
           nome: document.getElementById('novoAtletaNome').value,
           ranking: document.getElementById('novoAtletaRanking').value,
           posicao: Number(document.getElementById('novoAtletaPosicao').value),
+          telefone: document.getElementById('novoAtletaTelefone').value,
           observacoes: document.getElementById('novoAtletaObs').value,
         };
         const out = await api('/api/secretaria/atletas', {
@@ -884,6 +928,39 @@ async function carregarDesafios() {
   });
 }
 
+async function configurarDesafios() {
+  const select = document.getElementById('desafioAtleta');
+  const tbody = document.querySelector('#desafiosTable tbody');
+  const botao = document.getElementById('btnCarregarDesafios');
+  if (!select || !tbody || !botao) return;
+
+  const [sessao, atletas] = await Promise.all([carregarSessao(), api('/api/atletas')]);
+  preencherResumoSessao('sessaoDesafio', sessao);
+  const atletasPermitidos = sessao.secretaria_autorizada
+    ? atletas.filter((a) => !a.retirado)
+    : atletas.filter((a) => sessao.atleta_ids?.includes(a.id));
+
+  if (!atletasPermitidos.length) {
+    select.innerHTML = '';
+    tbody.innerHTML = '<tr><td colspan="6">Acesse como atleta identificado para gerar desafios do seu próprio perfil.</td></tr>';
+    botao.disabled = true;
+    document.getElementById('btnCopiarQuadro')?.setAttribute('disabled', 'disabled');
+    setMsg('msgCopiarQuadro', 'Somente atletas identificados ou a secretaria podem gerar desafios.', false);
+    return;
+  }
+
+  select.innerHTML = montarOpcoesAtletas(atletasPermitidos);
+  botao.disabled = false;
+  document.getElementById('btnCopiarQuadro')?.removeAttribute('disabled');
+  if (!sessao.secretaria_autorizada) {
+    select.disabled = atletasPermitidos.length <= 1;
+  }
+
+  botao.addEventListener('click', carregarDesafios);
+  document.getElementById('btnCopiarQuadro')?.addEventListener('click', copiarQuadroDesafio);
+  await carregarDesafios();
+}
+
 async function carregarPartidasAtletaParaResultado() {
   const atletaId = document.getElementById('atletaResultadoAtleta')?.value;
   if (!atletaId) return;
@@ -961,19 +1038,31 @@ function atualizarOpcoesVencedorAtleta() {
 }
 
 async function configurarResultadoAtleta() {
-  await carregarAtletasSelects();
   const select = document.getElementById('atletaResultadoAtleta');
   const partidaSelect = document.getElementById('partidaResultadoAtleta');
   const form = document.getElementById('formResultadoAtleta');
   if (!select || !partidaSelect || !form) return;
 
-  const atletas = await api('/api/atletas');
-  const options = atletas
-    .filter((a) => !a.retirado)
-    .sort((a, b) => a.nome.localeCompare(b.nome))
-    .map((a) => `<option value="${a.id}">${a.nome} (${a.categoria} - #${a.posicao})</option>`)
-    .join('');
-  select.innerHTML = options;
+  const [sessao, atletas] = await Promise.all([carregarSessao(), api('/api/atletas')]);
+  preencherResumoSessao('sessaoResultado', sessao);
+  const atletasPermitidos = sessao.secretaria_autorizada
+    ? atletas.filter((a) => !a.retirado)
+    : atletas.filter((a) => sessao.atleta_ids?.includes(a.id));
+
+  if (!atletasPermitidos.length) {
+    select.innerHTML = '';
+    partidaSelect.innerHTML = '<option value="">Sem permissão para lançar resultado</option>';
+    form.querySelectorAll('input, select, button').forEach((el) => {
+      if (el.id !== 'atletaResultadoAtleta') el.disabled = true;
+    });
+    setMsg('msgResultadoAtleta', 'Apenas atletas identificados e a secretaria podem lançar resultados.', false);
+    return;
+  }
+
+  select.innerHTML = montarOpcoesAtletas(atletasPermitidos);
+  if (!sessao.secretaria_autorizada) {
+    select.disabled = atletasPermitidos.length <= 1;
+  }
 
   select.addEventListener('change', carregarPartidasAtletaParaResultado);
   partidaSelect.addEventListener('change', atualizarOpcoesVencedorAtleta);
@@ -1039,11 +1128,7 @@ function boot() {
   }
 
   if (page === 'desafio') {
-    carregarAtletasSelects({ carregarPartidas: false }).then(() => {
-      document.getElementById('btnCarregarDesafios')?.addEventListener('click', carregarDesafios);
-      document.getElementById('btnCopiarQuadro')?.addEventListener('click', copiarQuadroDesafio);
-      carregarDesafios();
-    });
+    configurarDesafios();
   }
 
   if (page === 'resultado-atleta') {
