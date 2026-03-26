@@ -55,6 +55,14 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
+function partidaAtiva(partida) {
+  return ['marcada', 'pendente_agendamento', 'aguardando_data', 'em_andamento'].includes(partida?.status);
+}
+
+function partidaEncerrada(partida) {
+  return ['finalizada', 'realizada', 'cancelada', 'desconsiderada'].includes(partida?.status);
+}
+
 async function carregarSessao() {
   if (sessaoCache) return sessaoCache;
   sessaoCache = await api('/api/sessao');
@@ -284,6 +292,7 @@ async function carregarPartidas() {
 
   const lista = await api(`/api/partidas?${params.toString()}`);
   const tbody = document.querySelector('#partidasTable tbody');
+  const historicoTbody = document.querySelector('#partidasHistoricoTable tbody');
   if (!tbody) return;
   const badge = (partida) => {
     const status = partida.status || '';
@@ -297,7 +306,10 @@ async function carregarPartidas() {
     if (status === 'cancelada') return `<span class="status-chip status-amarelo">${rotulo}</span>`;
     return `<span class="status-chip status-amarelo">${rotulo}</span>`;
   };
-  tbody.innerHTML = lista.map(p => `
+  const ativos = lista.filter(partidaAtiva);
+  const historico = lista.filter((p) => partidaEncerrada(p) && !partidaAtiva(p));
+
+  tbody.innerHTML = ativos.map(p => `
     <tr>
       <td>${p.data}</td>
       <td><strong>${p.horario}</strong></td>
@@ -307,7 +319,21 @@ async function carregarPartidas() {
       <td>${badge(p)}</td>
       <td>-</td>
     </tr>
-  `).join('') || '<tr><td colspan="7">Nenhuma partida encontrada para os filtros selecionados.</td></tr>';
+  `).join('') || '<tr><td colspan="7">Nenhum jogo ativo encontrado para os filtros selecionados.</td></tr>';
+
+  if (historicoTbody) {
+    historicoTbody.innerHTML = historico.map(p => `
+      <tr>
+        <td>${p.data}</td>
+        <td><strong>${p.horario}</strong></td>
+        <td>${p.quadra_nome}</td>
+        <td><strong>${p.desafiante_nome}</strong> x <strong>${p.desafiado_nome}</strong></td>
+        <td>${p.categoria_label}</td>
+        <td>${badge(p)}</td>
+        <td>-</td>
+      </tr>
+    `).join('') || '<tr><td colspan="7">Nenhum jogo encerrado encontrado para os filtros selecionados.</td></tr>';
+  }
 }
 
 async function apagarResultado(partidaId, onDone) {
@@ -546,8 +572,12 @@ async function configurarSecretaria() {
 
   function carregarTodasPartidasSecretaria(lista = []) {
     const tbody = document.querySelector('#partidasSecretariaTable tbody');
+    const encerradasTbody = document.querySelector('#encerradasSecretariaTable tbody');
     if (!tbody) return;
-    tbody.innerHTML = lista.map((p) => {
+    const ativos = lista.filter((p) => partidaAtiva(p) && p.status !== 'desconsiderada');
+    const encerradas = lista.filter((p) => ['finalizada', 'realizada', 'cancelada'].includes(p.status));
+
+    tbody.innerHTML = ativos.map((p) => {
       const acoes = [];
       if (p.status === 'pendente_agendamento' || p.status === 'aguardando_data') {
         acoes.push(`<button type="button" class="btn-agendar-pendente" data-partida-id="${p.id}">Agendar</button>`);
@@ -572,11 +602,11 @@ async function configurarSecretaria() {
           <td><div class="table-actions">${acoes.join('') || '-'}</div></td>
         </tr>
       `;
-    }).join('') || '<tr><td colspan="7">Sem partidas registradas.</td></tr>';
+    }).join('') || '<tr><td colspan="7">Sem jogos ativos no momento.</td></tr>';
 
     tbody.querySelectorAll('.btn-agendar-pendente').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const partida = lista.find((item) => item.id === btn.dataset.partidaId);
+        const partida = ativos.find((item) => item.id === btn.dataset.partidaId);
         if (!partida) return;
         carregarPartidaNoFormulario(partida, 'pendente');
         setMsg(
@@ -591,7 +621,7 @@ async function configurarSecretaria() {
 
     tbody.querySelectorAll('.btn-remarcar-partida').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const partida = lista.find((item) => item.id === btn.dataset.partidaId);
+        const partida = ativos.find((item) => item.id === btn.dataset.partidaId);
         if (!partida) return;
         carregarPartidaNoFormulario(partida, 'remarcar');
         setMsg('msgTodasPartidasSecretaria', 'Partida marcada carregada no formulário para remarcação.', true);
@@ -603,6 +633,29 @@ async function configurarSecretaria() {
     });
 
     tbody.querySelectorAll('.btn-reverter-wo').forEach((btn) => {
+      btn.addEventListener('click', () => apagarResultado(btn.dataset.partidaId, atualizarPainelSecretaria));
+    });
+
+    if (!encerradasTbody) return;
+    encerradasTbody.innerHTML = encerradas.map((p) => {
+      const acoes = [];
+      if (p.resultado_reversivel && p.status === 'finalizada' && p.wo && p.resultado === 'W.O. por prazo expirado') {
+        acoes.push(`<button type="button" class="btn-reverter-wo" data-partida-id="${p.id}">Reverter W.O.</button>`);
+      }
+      return `
+        <tr>
+          <td>${p.data || '-'}</td>
+          <td>${p.horario || '-'}</td>
+          <td>${p.quadra_nome || '-'}</td>
+          <td><strong>${p.desafiante_nome}</strong> x <strong>${p.desafiado_nome}</strong></td>
+          <td>${p.categoria_label || p.categoria || '-'}</td>
+          <td>${badgePartidaSecretaria(p)}</td>
+          <td><div class="table-actions">${acoes.join('') || '-'}</div></td>
+        </tr>
+      `;
+    }).join('') || '<tr><td colspan="7">Sem jogos encerrados no histórico.</td></tr>';
+
+    encerradasTbody.querySelectorAll('.btn-reverter-wo').forEach((btn) => {
       btn.addEventListener('click', () => apagarResultado(btn.dataset.partidaId, atualizarPainelSecretaria));
     });
   }

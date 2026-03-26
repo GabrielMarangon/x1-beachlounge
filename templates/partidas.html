@@ -52,7 +52,7 @@
     </section>
 
     <section class="panel">
-      <h2>Agenda esportiva</h2>
+      <h2>Jogos ativos</h2>
       <div class="table-wrap">
         <table class="table" id="partidasTable">
           <thead>
@@ -69,6 +69,28 @@
           <tbody></tbody>
         </table>
       </div>
+      <p class="hint">Esta lista mostra apenas jogos que ainda estão marcados ou aguardando definição.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Histórico de jogos encerrados</h2>
+      <div class="table-wrap">
+        <table class="table" id="partidasHistoricoTable">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Horário</th>
+              <th>Quadra</th>
+              <th>Confronto</th>
+              <th>Categoria</th>
+              <th>Status</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="hint">Aqui ficam jogos finalizados, desconsiderados, cancelados ou encerrados por W.O. automático.</p>
     </section>
   </main>
   <script src="{{ url_for('static', filename='script.js') }}"></script>
