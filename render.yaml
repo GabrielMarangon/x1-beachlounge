@@ -2,14 +2,10 @@ services:
   - type: web
     name: x1-beachlounge
     env: python
-    plan: starter
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
     autoDeploy: true
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
-      - key: DATA_DIR
-        value: /var/data
-      - key: X1_BEACHLOUNGE_REQUIRE_DATA_DIR
-        value: "1"
