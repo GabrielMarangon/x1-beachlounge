@@ -17,7 +17,7 @@ function setMsg(id, txt, ok = true) {
 }
 
 function aplicarFallbackLogos() {
-  const fallbacks = ['/static/images/logo_btc.svg', '/static/images/logo_ranking_x1.svg'];
+  const fallbacks = ['/static/images/logo_ranking_x1.svg', '/static/images/logo_ranking_x1.svg'];
   const aplicar = (img, index) => {
     img.src = fallbacks[index] || fallbacks[0];
   };
@@ -106,7 +106,7 @@ function montarTextoRanking() {
   const select = document.getElementById('filtroRanking');
   const categoria = select?.selectedOptions?.[0]?.textContent || 'Ranking';
   const linhas = [
-    `RANKING BTC 2026 - ${categoria}`,
+    `RANKING BEACH LOUNGE 2026 - ${categoria}`,
     '',
     ...rankingAtualCache.map((atleta) => `${atleta.posicao}. ${atleta.nome} (${atleta.classe || 'Sem classe'})`),
   ];
@@ -137,7 +137,7 @@ async function copiarQuadroDesafio() {
   const hora = document.getElementById('qHora')?.textContent?.trim() || '___';
 
   const texto = [
-    'RANKING BTC 2026',
+    'RANKING BEACH LOUNGE 2026',
     '',
     `⌛ DESAFIOS: ${desafio}`,
     '',

@@ -53,14 +53,14 @@ class DataStorePersistenceTests(unittest.TestCase):
             runtime_dir = root / 'runtime'
             self._write_bootstrap(bootstrap_dir, 'atletas', [{'id': 'a1', 'nome': 'Original'}])
 
-            store = DataStore(runtime_dir / 'x1_btc.db', bootstrap_dir, runtime_dir)
+            store = DataStore(runtime_dir / 'x1_beachlounge.db', bootstrap_dir, runtime_dir)
             atletas = store.load_dataset('atletas')
             atletas.append({'id': 'a2', 'nome': 'Persistido'})
             store.save_dataset('atletas', atletas)
 
             self._write_bootstrap(bootstrap_dir, 'atletas', [{'id': 'a9', 'nome': 'Seed alterado'}])
 
-            restarted_store = DataStore(runtime_dir / 'x1_btc.db', bootstrap_dir, runtime_dir)
+            restarted_store = DataStore(runtime_dir / 'x1_beachlounge.db', bootstrap_dir, runtime_dir)
             persisted = restarted_store.load_dataset('atletas')
 
             self.assertEqual([item['id'] for item in persisted], ['a1', 'a2'])
@@ -75,12 +75,12 @@ class DataStorePersistenceTests(unittest.TestCase):
             runtime_dir = root / 'runtime'
             self._write_bootstrap(bootstrap_dir, 'partidas', [{'id': 'p001'}])
 
-            store = DataStore(runtime_dir / 'x1_btc.db', bootstrap_dir, runtime_dir)
+            store = DataStore(runtime_dir / 'x1_beachlounge.db', bootstrap_dir, runtime_dir)
             partidas = store.load_dataset('partidas')
 
             self.assertEqual(partidas, [{'id': 'p001'}])
             self.assertTrue((runtime_dir / 'partidas.json').exists())
-            self.assertTrue((runtime_dir / 'x1_btc.db').exists())
+            self.assertTrue((runtime_dir / 'x1_beachlounge.db').exists())
             del store
             gc.collect()
 
@@ -96,7 +96,7 @@ class DataStorePersistenceTests(unittest.TestCase):
                 encoding='utf-8',
             )
 
-            store = DataStore(runtime_dir / 'x1_btc.db', bootstrap_dir, runtime_dir)
+            store = DataStore(runtime_dir / 'x1_beachlounge.db', bootstrap_dir, runtime_dir)
             partidas = store.load_dataset('partidas')
 
             self.assertEqual(partidas, [{'id': 'runtime'}])

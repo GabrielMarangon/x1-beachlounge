@@ -1,15 +1,15 @@
 ﻿:root {
-  --bg: #edf1f5;
-  --bg-soft: #f5f7fb;
+  --bg: #f6efe3;
+  --bg-soft: #fffaf3;
   --panel: #ffffff;
-  --line: #d9e2ea;
-  --text: #1f2d3d;
-  --muted: #5f7286;
-  --primary: #114b87;
-  --primary-strong: #0a3561;
-  --primary-soft: #eaf2fb;
-  --green: #2f9e57;
-  --yellow: #d59f20;
+  --line: #ead9bb;
+  --text: #2d2a26;
+  --muted: #6f665c;
+  --primary: #d96d1f;
+  --primary-strong: #a74c13;
+  --primary-soft: #fff0e3;
+  --green: #2f8f6a;
+  --yellow: #d6a23d;
   --red: #c94a4a;
   --gray: #7f8d9b;
 }
@@ -20,13 +20,13 @@ body {
   margin: 0;
   color: var(--text);
   font-family: "Inter", "Poppins", "Segoe UI", Arial, sans-serif;
-  background: linear-gradient(180deg, #f6f8fb 0%, #eef2f7 100%);
+  background: linear-gradient(180deg, #fff8ee 0%, #f4ead8 52%, #eef6f3 100%);
 }
 
 .topbar {
-  background: #ffffff;
-  border-bottom: 1px solid #d7e1eb;
-  box-shadow: 0 8px 26px rgba(9, 43, 74, 0.08);
+  background: linear-gradient(180deg, #fffdf9 0%, #fff4e7 100%);
+  border-bottom: 1px solid #ecd7b8;
+  box-shadow: 0 8px 26px rgba(112, 73, 19, 0.08);
   padding: 0.9rem 1rem 1.05rem;
 }
 
@@ -52,10 +52,10 @@ body {
   height: 102px;
   object-fit: contain;
   border-radius: 18px;
-  border: 1px solid #d7e1eb;
-  background: #fff;
+  border: 1px solid #ead9bb;
+  background: #151210;
   padding: 7px;
-  box-shadow: 0 6px 16px rgba(10, 43, 71, 0.12);
+  box-shadow: 0 6px 16px rgba(85, 57, 21, 0.16);
 }
 
 .topbar-title {
@@ -71,13 +71,13 @@ body {
   gap: 0.28rem;
   border-radius: 14px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.58) 0%, rgba(255, 255, 255, 0.72) 100%),
-    url("/static/images/quadra_header.jpg"),
-    linear-gradient(180deg, #f7fbff 0%, #eef5fc 100%);
+    linear-gradient(180deg, rgba(255, 249, 241, 0.72) 0%, rgba(255, 249, 241, 0.78) 100%),
+    url("/static/images/Medidas-da-Quadra-de-Beach-Tennis-930x620.webp"),
+    linear-gradient(180deg, #fff8ee 0%, #f3ecdf 100%);
   background-repeat: no-repeat, no-repeat, no-repeat;
   background-position: center center, center center, center center;
   background-size: cover, cover, cover;
-  border: 1px solid #d9e6f2;
+  border: 1px solid #ecdcc1;
   box-shadow: inset 0 1px 0 #ffffff;
 }
 
@@ -85,7 +85,7 @@ body {
 .topbar-title-home p {
   position: relative;
   z-index: 1;
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 252, 246, 0.88);
   padding: 0.05rem 0.35rem;
   border-radius: 6px;
 }

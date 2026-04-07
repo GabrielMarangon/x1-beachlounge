@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: x1-btc
+    name: x1-beachlounge
     env: python
     plan: starter
     buildCommand: pip install -r requirements.txt
@@ -11,5 +11,5 @@ services:
         value: 3.11.9
       - key: DATA_DIR
         value: /var/data
-      - key: X1_BTC_REQUIRE_DATA_DIR
+      - key: X1_BEACHLOUNGE_REQUIRE_DATA_DIR
         value: "1"

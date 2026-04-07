@@ -22,7 +22,7 @@ class DataStore:
         self.mirror_dir = mirror_dir or bootstrap_dir
         self.database_url = os.getenv('DATABASE_URL', '').strip()
         self.backend = 'postgres' if self.database_url else 'sqlite'
-        self.logger = logging.getLogger('x1_btc.storage')
+        self.logger = logging.getLogger('x1_beachlounge.storage')
 
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.mirror_dir.mkdir(parents=True, exist_ok=True)

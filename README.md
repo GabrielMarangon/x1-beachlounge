@@ -1,27 +1,43 @@
-# X1_BTC
+# X1 Beach Lounge
 
-Aplicação Flask para gestão de ranking, desafios, agenda de quadras, resultados e secretaria do clube.
+Projeto independente criado a partir do `x1_btc`, mantendo a base funcional de ranking, desafios, agenda de quadras, resultados e secretaria, mas com identidade propria e banco separado.
 
-## O problema que causava perda de dados
+## Diferenca em relacao ao x1_btc
 
-O projeto usava o diretório `dados/` do repositório como bootstrap e, em alguns cenários, também como armazenamento operacional. Em ambiente Render isso é perigoso porque:
+- roda em pasta propria: `apps/x1_beachlounge`
+- usa banco proprio: `x1_beachlounge.db`
+- usa variavel de seguranca propria: `X1_BEACHLOUNGE_REQUIRE_DATA_DIR`
+- nao compartilha runtime, dados ou deploy com o projeto original
 
-- deploy e restart podem trocar o container
-- filesystem do container é efêmero
-- sem um diretório persistente explícito, o app podia voltar para arquivos seed do repositório
+O projeto original em `templates/x1_btc` permanece intocado.
 
-O efeito prático era o sistema "renascer" após deploy, restart ou nova publicação.
+## Como rodar localmente
 
-## Como a persistência funciona agora
+```powershell
+cd "C:\meu_chatbot_flask - Copia\apps\x1_beachlounge"
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python app.py
+```
 
-O app separa dois conceitos:
+Acesso local:
 
-- `dados/` dentro do projeto: bootstrap somente leitura para primeira inicialização
-- `DATA_DIR`: diretório operacional persistente onde ficam SQLite e JSONs espelho
+- `http://127.0.0.1:5005`
 
-Arquivos operacionais persistidos em `DATA_DIR`:
+Scripts auxiliares:
 
-- `x1_btc.db`
+- `rodar_x1_beachlounge.bat`
+- `start_x1_beachlounge.ps1`
+- `parar_x1_beachlounge.bat`
+
+## Persistencia de dados
+
+Sem `DATA_DIR`, o ambiente local usa `./.runtime_data` automaticamente.
+
+Arquivos operacionais esperados:
+
+- `x1_beachlounge.db`
 - `atletas.json`
 - `quadras.json`
 - `horarios.json`
@@ -29,130 +45,49 @@ Arquivos operacionais persistidos em `DATA_DIR`:
 - `access_logs.json`
 - backups `*.last_nonempty.json`
 
-Regras de segurança implementadas:
+## Deploy no Render
 
-- em produção/Render, se `DATA_DIR` não estiver definido, o app falha no boot com mensagem clara
-- se `DATA_DIR` apontar para um diretório inexistente ou sem permissão, o app falha no boot
-- o bootstrap do repositório só é aplicado quando o diretório persistente ainda está vazio
-- se já existir base persistida, o bootstrap não sobrescreve produção
-- na primeira migração, dados legados encontrados fora do diretório persistente são copiados para `DATA_DIR` sem apagar o que já existir lá
+### 1. Criar o servico
 
-## Rodar localmente
+- nome sugerido: `x1-beachlounge`
+- ambiente: `Python`
 
-Sem `DATA_DIR`, o ambiente local usa `./.runtime_data` automaticamente:
+### 2. Configurar Persistent Disk
 
-```powershell
-python app.py
-```
-
-Acesse:
-
-- `http://127.0.0.1:5004`
-
-## Health checks
-
-O endpoint existente continua igual:
-
-- `GET /health`
-
-Novo endpoint de diagnóstico de storage:
-
-- `GET /health/storage`
-
-Ele informa:
-
-- diretório bootstrap
-- diretório operacional
-- caminho do banco
-- origem da configuração
-- se o runtime existe e está gravável
-- lista de arquivos presentes no runtime
-
-## Deploy no Render com Persistent Disk
-
-### 1. Criar ou revisar o Web Service
-
-No Render Dashboard:
-
-1. Abra o serviço `x1-btc`
-2. Confirme que o plano é `Starter`
-
-### 2. Criar e anexar o Persistent Disk
-
-No Render Dashboard:
-
-1. Entre em `Disks`
-2. Crie um disco persistente
-3. Anexe esse disco ao serviço `x1-btc`
-4. Defina o `Mount Path` como:
+Monte um disco persistente em:
 
 ```text
 /var/data
 ```
 
-### 3. Configurar as variáveis de ambiente
+### 3. Variaveis de ambiente
 
-No Render Dashboard, em `Environment`, configure:
+Configure:
 
 ```text
 DATA_DIR=/var/data
-X1_BTC_REQUIRE_DATA_DIR=1
+X1_BEACHLOUNGE_REQUIRE_DATA_DIR=1
+PYTHON_VERSION=3.11.9
 ```
 
-O `render.yaml` já foi preparado com esses valores, mas o ponto crítico é que o `Mount Path` do disco e o `DATA_DIR` sejam exatamente o mesmo caminho.
+### 4. Build e start
 
-### 4. Validar no primeiro boot
+- Build Command: `pip install -r requirements.txt`
+- Start Command: `gunicorn app:app`
 
-Após o deploy:
+### 5. Validacao apos o deploy
 
-1. Abra os logs do serviço
-2. Confirme mensagens como:
-   - `Bootstrap de dados configurado em: ...`
-   - `Diretorio operacional configurado em: /var/data`
-   - `Banco operacional configurado em: /var/data/x1_btc.db`
-3. Acesse:
+Use:
+
+- `GET /health`
+- `GET /health/storage`
+
+O esperado e ver o banco operacional apontando para:
 
 ```text
-https://SEU-APP.onrender.com/health/storage
+/var/data/x1_beachlounge.db
 ```
 
-Você deve ver:
+## Observacao
 
-- `runtime_dir` apontando para `/var/data`
-- `runtime_exists: true`
-- `runtime_writable: true`
-
-## Como validar que a persistência ficou correta
-
-Faça este teste simples:
-
-1. Crie ou altere um atleta, desafio, partida ou resultado no app
-2. Confira que a informação apareceu normalmente
-3. Execute um restart no serviço pelo Render
-4. Abra novamente o app e confirme que o dado continua lá
-5. Faça um novo deploy
-6. Valide novamente que o mesmo dado permanece
-
-Se o deploy estiver correto, o app deve continuar a partir da base gravada em `/var/data`.
-
-## Testes locais
-
-Rodar validações principais:
-
-```powershell
-python -m py_compile app.py datastore.py storage_config.py
-python -m unittest discover -s tests -v
-```
-
-## Estrutura principal
-
-- `app.py`
-- `datastore.py`
-- `storage_config.py`
-- `regras_ranking.py`
-- `agenda.py`
-- `ranking_logic.py`
-- `utils.py`
-- `dados/*.json` (bootstrap)
-- `templates/*`
-- `static/*`
+Esta duplicacao foi feita para criar um sistema totalmente independente do `x1_btc`, preservando o projeto original ja em producao.
