@@ -20,25 +20,11 @@ def _is_truthy(value: str | None) -> bool:
     return (value or '').strip().lower() in {'1', 'true', 'yes', 'on'}
 
 
-def running_in_managed_production(environ: Mapping[str, str] | None = None) -> bool:
-    env = environ or os.environ
-    return any(
-        (
-            env.get('RENDER'),
-            env.get('RENDER_SERVICE_ID'),
-            env.get('RENDER_INSTANCE_ID'),
-            env.get('IS_RENDER'),
-            env.get('RENDER_EXTERNAL_URL'),
-            env.get('RENDER_SERVICE_NAME'),
-        )
-    )
-
-
 def resolve_storage_paths(base_dir: Path, environ: Mapping[str, str] | None = None) -> StoragePaths:
     env = environ or os.environ
     bootstrap_dir = base_dir / 'dados'
     configured = (env.get('DATA_DIR') or '').strip()
-    strict_mode = running_in_managed_production(env) or _is_truthy(env.get('X1_BEACHLOUNGE_REQUIRE_DATA_DIR'))
+    strict_mode = _is_truthy(env.get('X1_BEACHLOUNGE_REQUIRE_DATA_DIR'))
 
     if configured:
         runtime_dir = Path(configured)
