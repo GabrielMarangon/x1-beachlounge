@@ -112,6 +112,13 @@ class DataStore:
                 self.mirror_dir,
             )
 
+    def _mirror_directories(self) -> list[Path]:
+        dirs: list[Path] = []
+        for candidate in (self.mirror_dir, self.bootstrap_dir):
+            if candidate not in dirs:
+                dirs.append(candidate)
+        return dirs
+
     def _mirror_path(self, name: str) -> Path:
         return self.mirror_dir / f'{name}.json'
 
@@ -260,7 +267,7 @@ class DataStore:
                 )
                 conn.commit()
 
-        mirror_path = self._mirror_path(name)
-        mirror_path.write_text(payload, encoding='utf-8')
-        if isinstance(data, list) and data:
-            self._nonempty_backup_path(name).write_text(payload, encoding='utf-8')
+        for target_dir in self._mirror_directories():
+            (target_dir / f'{name}.json').write_text(payload, encoding='utf-8')
+            if isinstance(data, list) and data:
+                (target_dir / f'{name}.last_nonempty.json').write_text(payload, encoding='utf-8')

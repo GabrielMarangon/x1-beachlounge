@@ -11,3 +11,6 @@ server_stderr.log
 Thumbs.db
 dados/x1_beachlounge.db
 dados/access_logs.json
+.runtime_data/
+dados/*.last_nonempty.json
+dados/access_logs.last_nonempty.json

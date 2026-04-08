@@ -23,7 +23,7 @@ class StorageConfigTests(unittest.TestCase):
             base_dir = Path(tmp)
             (base_dir / 'dados').mkdir()
             env = {
-                'RENDER_SERVICE_ID': 'srv-test',
+                'X1_BEACHLOUNGE_REQUIRE_DATA_DIR': '1',
             }
             with self.assertRaisesRegex(RuntimeError, 'DATA_DIR'):
                 resolve_storage_paths(base_dir, env)
@@ -101,6 +101,35 @@ class DataStorePersistenceTests(unittest.TestCase):
 
             self.assertEqual(partidas, [{'id': 'runtime'}])
             del store
+            gc.collect()
+
+    def test_save_keeps_bootstrap_json_synced_for_runtime_recovery(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bootstrap_dir = root / 'bootstrap'
+            runtime_dir = root / 'runtime'
+            self._write_bootstrap(bootstrap_dir, 'atletas', [{'id': 'a1', 'nome': 'Original'}])
+
+            store = DataStore(runtime_dir / 'x1_beachlounge.db', bootstrap_dir, runtime_dir)
+            atletas = store.load_dataset('atletas')
+            atletas.append({'id': 'a2', 'nome': 'Persistido'})
+            store.save_dataset('atletas', atletas)
+
+            bootstrap_payload = json.loads((bootstrap_dir / 'atletas.json').read_text(encoding='utf-8'))
+            self.assertEqual([item['id'] for item in bootstrap_payload], ['a1', 'a2'])
+
+            del store
+            gc.collect()
+
+            for child in runtime_dir.iterdir():
+                if child.is_file():
+                    child.unlink()
+
+            restarted_store = DataStore(runtime_dir / 'x1_beachlounge.db', bootstrap_dir, runtime_dir)
+            recovered = restarted_store.load_dataset('atletas')
+
+            self.assertEqual([item['id'] for item in recovered], ['a1', 'a2'])
+            del restarted_store
             gc.collect()
 
 
