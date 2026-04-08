@@ -42,9 +42,7 @@
       <label>Quadra
         <select id="filtroQuadra">
           <option value="">Todas</option>
-          <option value="quadra_1">Quadra 1</option>
-          <option value="quadra_2">Quadra 2</option>
-          <option value="quadra_3">Quadra 3</option>
+          {% for quadra in quadras %}<option value="{{ quadra.id }}">{{ quadra.nome }}</option>{% endfor %}
         </select>
       </label>
       <label>Atleta <input type="text" id="filtroAtleta" placeholder="Nome do atleta"></label>

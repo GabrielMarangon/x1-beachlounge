@@ -43,9 +43,7 @@
           <thead>
             <tr>
               <th>Horário</th>
-              <th>Quadra 1</th>
-              <th>Quadra 2</th>
-              <th>Quadra 3</th>
+              {% for quadra in quadras %}<th>{{ quadra.nome }}</th>{% endfor %}
             </tr>
           </thead>
           <tbody></tbody>

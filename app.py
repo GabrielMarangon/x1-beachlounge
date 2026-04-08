@@ -708,7 +708,8 @@ def create_app() -> Flask:
 
     @app.route('/agenda')
     def agenda_page():
-        return render_template('agenda.html')
+        data = _load_all()
+        return render_template('agenda.html', quadras=data['quadras'])
 
     @app.route('/atleta/<atleta_id>')
     def atleta_page(atleta_id: str):
@@ -716,7 +717,8 @@ def create_app() -> Flask:
 
     @app.route('/partidas')
     def partidas_page():
-        return render_template('partidas.html', ranking_rotulos=RANKING_ROTULOS)
+        data = _load_all()
+        return render_template('partidas.html', ranking_rotulos=RANKING_ROTULOS, quadras=data['quadras'])
 
     @app.route('/resultado-atleta')
     def resultado_atleta_page():
@@ -769,9 +771,12 @@ def create_app() -> Flask:
 
     @app.route('/secretaria')
     def secretaria_page():
+        data = _load_all()
         return render_template(
             'secretaria.html',
             ranking_rotulos=RANKING_ROTULOS,
+            quadras=data['quadras'],
+            horarios=data['horarios'],
             secretaria_usuario=session.get('secretaria_usuario', ''),
         )
 
