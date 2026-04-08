@@ -189,6 +189,20 @@ class DataStore:
             )
             conn.commit()
 
+    def load_bootstrap_dataset(self, name: str) -> Any:
+        bootstrap_path = self.bootstrap_dir / f'{name}.json'
+        if not bootstrap_path.exists():
+            raise FileNotFoundError(f'Dataset n?o encontrado: {bootstrap_path}')
+        return self._read_json_file(bootstrap_path)
+
+    def sync_dataset_from_bootstrap(self, name: str) -> tuple[Any, bool]:
+        bootstrap_data = self.load_bootstrap_dataset(name)
+        current_data = self.load_dataset(name)
+        if current_data != bootstrap_data:
+            self.save_dataset(name, bootstrap_data)
+            return bootstrap_data, True
+        return current_data, False
+
     def load_dataset(self, name: str) -> Any:
         if self.backend == 'postgres':
             with self._postgres_connect() as conn:

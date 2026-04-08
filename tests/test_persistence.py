@@ -132,6 +132,28 @@ class DataStorePersistenceTests(unittest.TestCase):
             del restarted_store
             gc.collect()
 
+    def test_sync_dataset_from_bootstrap_updates_reference_data(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bootstrap_dir = root / 'bootstrap'
+            runtime_dir = root / 'runtime'
+            self._write_bootstrap(bootstrap_dir, 'quadras', [{'id': 'quadra_1', 'nome': 'Quadra 1'}, {'id': 'quadra_2', 'nome': 'Quadra 2'}])
+            runtime_dir.mkdir(parents=True, exist_ok=True)
+            (runtime_dir / 'quadras.json').write_text(
+                json.dumps([{'id': 'quadra_1', 'nome': 'Quadra 1'}], ensure_ascii=False, indent=2),
+                encoding='utf-8',
+            )
+
+            store = DataStore(runtime_dir / 'x1_beachlounge.db', bootstrap_dir, runtime_dir)
+            synced, changed = store.sync_dataset_from_bootstrap('quadras')
+
+            self.assertTrue(changed)
+            self.assertEqual(len(synced), 2)
+            reloaded = store.load_dataset('quadras')
+            self.assertEqual(len(reloaded), 2)
+            del store
+            gc.collect()
+
 
 if __name__ == '__main__':
     unittest.main()

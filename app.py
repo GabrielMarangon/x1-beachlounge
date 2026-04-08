@@ -129,10 +129,19 @@ ACCESS_LOG_LIMIT = 2000
 
 
 def _load_all() -> Dict[str, Any]:
+    quadras, quadras_sync = STORE.sync_dataset_from_bootstrap('quadras')
+    horarios, horarios_sync = STORE.sync_dataset_from_bootstrap('horarios')
+    if quadras_sync or horarios_sync:
+        LOGGER.info(
+            'Datasets de refer?ncia sincronizados do bootstrap (quadras=%s, horarios=%s).',
+            quadras_sync,
+            horarios_sync,
+        )
+
     data = {
         'atletas': STORE.load_dataset('atletas'),
-        'quadras': STORE.load_dataset('quadras'),
-        'horarios': STORE.load_dataset('horarios'),
+        'quadras': quadras,
+        'horarios': horarios,
         'partidas': STORE.load_dataset('partidas'),
     }
     if _backfill_known_athlete_phones(data['atletas']):
